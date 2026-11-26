@@ -460,6 +460,10 @@ body.chat-off .chat {
   top: calc(var(--gnb-h) + 12px);
   width: 320px;
   max-width: calc(100vw - 32px);
+  /* 섹션이 많아져도 화면 밖으로 넘치지 않게 패널 안에서 스크롤 */
+  max-height: calc(100dvh - var(--gnb-h) - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: #15161bf7;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -598,4 +602,80 @@ body.chat-off .chat {
 }
 .ai-status.ok {
   color: var(--accent);
+}
+
+/* ---------------- 채널 소개 (INF-05) ---------------- */
+.about {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.about-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.about-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}
+.about-intro {
+  margin: 0;
+  color: #d4d6dc;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.about-schedule,
+.about-links {
+  display: none;
+}
+.about.open .about-intro {
+  -webkit-line-clamp: unset;
+}
+.about.open .about-schedule:not([hidden]),
+.about.open .about-links:not([hidden]) {
+  display: block;
+  margin-top: 10px;
+}
+.about-schedule b {
+  font-size: 13px;
+  color: var(--muted);
+}
+.about-schedule ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.about-links {
+  display: none;
+}
+.about.open .about-links:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.about-link {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 13px;
+  text-decoration: none;
+}
+.about-link:hover {
+  background: #2a2c34;
+}
+.admin-say .admin-row input {
+  flex: 1;
+  min-width: 0;
 }

@@ -60,6 +60,8 @@ export interface FreeTalkDeps {
   idle: string[];
   say(text: string, expr: string): Promise<void>;
   setExpr(expr: string): void;
+  /** 대답 기다리는 동안 대사창 표시 */
+  thinking(): void;
   /** 지금 답하는 채팅 표시 (null 이면 숨김) */
   quote(c: Candidate | null): void;
   /** 최근 방송 대사 (분위기 파악용) */
@@ -127,6 +129,7 @@ export class FreeTalk {
         const t0 = Date.now();
         this.d.quote(c);
         this.d.setExpr('thinking');
+        this.d.thinking();
         const line = (await this.ask(c)) ?? { expr: 'normal', text: pick(this.d.fallback.length ? this.d.fallback : ['앗, 잠깐 놓쳤어!']) };
         if (!live()) break;
         await this.d.say(line.text, line.expr);

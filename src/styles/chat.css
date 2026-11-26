@@ -247,3 +247,101 @@
   width: 36px;
   height: 36px;
 }
+
+/* ---------------- 채팅 설정 (CHT-08) ---------------- */
+.chat-head-actions {
+  display: flex;
+  align-items: center;
+}
+.chat-head .i {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+.chat-pop {
+  position: absolute;
+  top: 52px;
+  right: 8px;
+  z-index: 6;
+  display: grid;
+  gap: 12px;
+  width: 250px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #1b1d23f7;
+  box-shadow: 0 10px 30px #0009;
+  font-size: 13px;
+}
+.cs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #c8cad0;
+}
+.cs-row input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.seg {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.seg button {
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+}
+.seg button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.chat[data-font='sm'] .chat-list {
+  font-size: 12.5px;
+}
+.chat[data-font='lg'] .chat-list {
+  font-size: 16.5px;
+}
+.msg-time {
+  display: none;
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: 0.82em;
+  font-variant-numeric: tabular-nums;
+}
+.chat.show-time .msg-time {
+  display: inline;
+}
+.don-head {
+  justify-content: flex-start;
+  align-items: baseline;
+}
+.don-head .don-amt {
+  margin-left: auto;
+}
+
+/* ---------------- 새 창 채팅 ---------------- */
+body.popout #app {
+  display: block;
+  height: 100dvh;
+}
+body.popout .gnb,
+body.popout .sidebar,
+body.popout .main,
+body.popout .chat-open,
+body.popout #chat-close,
+body.popout #chat-popout {
+  display: none !important;
+}
+body.popout .chat {
+  visibility: visible;
+  height: 100dvh;
+  border: 0;
+}

@@ -81,16 +81,33 @@ export class DialogueBox {
     this.root.classList.add('empty');
   }
 
+  private setName(name?: string, color?: string) {
+    this.plate.hidden = !name;
+    this.plateText.textContent = name ?? '';
+    if (color) this.plate.style.setProperty('--name-color', color);
+    else this.plate.style.removeProperty('--name-color');
+  }
+
+  /** 대답을 기다리는 동안: 직전 대사 대신 '생각 중' 점 애니메이션 */
+  showThinking(name?: string, color?: string) {
+    if (this.state !== 'idle') return;
+    this.root.classList.remove('empty');
+    this.setName(name, color);
+    this.next.classList.remove('on');
+    this.textEl.textContent = '';
+    const dots = h('span', 'thinking-dots');
+    dots.setAttribute('role', 'img');
+    dots.setAttribute('aria-label', '생각 중');
+    dots.append(h('i'), h('i'), h('i'));
+    this.textEl.append(dots);
+  }
+
   async say(o: SayOptions, onTalk: (on: boolean) => void): Promise<void> {
     this.aborted = false;
     this.skip = false;
     this.root.classList.remove('empty');
 
-    // 이름표
-    this.plate.hidden = !o.name;
-    this.plateText.textContent = o.name ?? '';
-    if (o.nameColor) this.plate.style.setProperty('--name-color', o.nameColor);
-    else this.plate.style.removeProperty('--name-color');
+    this.setName(o.name, o.nameColor);
 
     // 전체 문장을 미리 배치한 뒤 글자 노출만 제어 → 출력 도중 줄바꿈 위치가 바뀌지 않는다
     const tokens = parseLine(o.text);

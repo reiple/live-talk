@@ -10,14 +10,24 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { join, resolve } from 'node:path';
 import { loadConfig } from './config.ts';
-import { complete, health, LlmError } from './llm.ts';
+import { complete, health, LlmError, loadModel } from './llm.ts';
 import { buildMessages, parseRequest, sanitizeReply, type AiPersona } from './reply.ts';
+import { Warmer } from './warmup.ts';
 
 const cfg = loadConfig();
 const PORT = Number(process.env.PORT) || 8787;
 const SCRIPTS_DIR = resolve(process.env.SCRIPTS_DIR ?? join(import.meta.dirname, '../../public/scripts'));
 const MAX_BODY = 16 * 1024;
 const RATE_PER_MIN = Number(process.env.RATE_PER_MIN) || 30;
+
+/* ---------------- 모델 미리 올리기 ---------------- */
+const warmer = new Warmer({
+  check: () => health(cfg),
+  load: () => loadModel(cfg),
+  sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+  log: (m) => console.log(m),
+  now: () => Date.now(),
+});
 
 /* ---------------- 캐릭터 설정 로드 (스크립트 파일의 ai 항목) ---------------- */
 interface ScriptAi {
@@ -66,6 +76,9 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
 }
 
 async function handleReply(req: IncomingMessage, res: ServerResponse) {
+  // 모델을 올리는 중에는 오래 기다리게 하지 않고 바로 알린다 (브라우저는 준비된 대사로 대신함)
+  if (!warmer.ready) return send(res, 503, { error: warmer.message, warming: true });
+
   const ip = req.socket.remoteAddress ?? 'unknown';
   if (rateLimited(ip)) return send(res, 429, { error: '요청이 너무 많습니다. 잠시 후 다시 시도하세요.' });
 
@@ -110,11 +123,14 @@ const server = createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && url.pathname === '/api/health') {
       const h = await health(cfg);
-      return send(res, h.reachable && h.modelReady ? 200 : 503, {
-        ok: h.reachable && h.modelReady,
+      const ok = h.reachable && h.modelReady && warmer.ready;
+      return send(res, ok ? 200 : 503, {
+        ok,
         provider: cfg.provider,
         model: cfg.model,
+        warm: warmer.state,
         ...h,
+        ...(!ok && !h.error ? { error: warmer.message } : {}),
       });
     }
     if (req.method === 'POST' && url.pathname === '/api/reply') return await handleReply(req, res);
@@ -127,4 +143,13 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`[live-talk api] http://localhost:${PORT}  provider=${cfg.provider} model=${cfg.model} base=${cfg.baseUrl}`);
+  void warmer.run();
 });
+
+const shutdown = () => {
+  warmer.stop();
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 3000).unref();
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

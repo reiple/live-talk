@@ -10,7 +10,20 @@
       "한국어"
     ],
     "loop": false,
-    "notice": "채팅에 {green}안녕{/green}, {green}노래{/green}, {green}케이크{/green}를 입력하면 하루가 반응해요. 투표가 열리면 {green}번호{/green}로 참여!"
+    "notice": "채팅에 {green}안녕{/green}, {green}노래{/green}, {green}케이크{/green}를 입력하면 하루가 반응해요. 투표가 열리면 {green}번호{/green}로 참여!",
+    "about": {
+      "intro": "민트색 머리의 수다쟁이 버튜버 하루의 방송 채널이에요. 매일 밤 시청자와 수다를 떨고, 가끔은 사소한 사건을 추리합니다. 채팅으로 말을 걸면 하루가 직접 대답해요!",
+      "schedule": [
+        "월·수·금 밤 9시 — 저스트 채팅",
+        "토요일 밤 10시 — 추리 토크"
+      ],
+      "links": [
+        {
+          "label": "방송 공지 (예시)",
+          "url": "https://example.com/"
+        }
+      ]
+    }
   },
   "characters": {
     "host": {
