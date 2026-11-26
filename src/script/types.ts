@@ -32,6 +32,8 @@ export type Command =
    * 이후 대사에서 $winner(선택지 글자), $winnerPct(득표율) 를 쓸 수 있다.
    */
   | { cmd: 'vote'; question: string; options: VoteOption[]; seconds?: number }
+  /** 자유 대화: seconds 동안 시청자 채팅에 AI 로 대답 (AI 서버가 없으면 건너뜀) */
+  | { cmd: 'freetalk'; seconds?: number }
   | { cmd: 'wait'; ms: number }
   | { cmd: 'label'; name: string }
   | { cmd: 'jump'; to: string }
@@ -62,8 +64,21 @@ export interface StreamMeta {
   notice?: string;
 }
 
+/** AI 자유 대화 설정. persona/examples 는 서버가 이 파일에서 직접 읽는다. */
+export interface ScriptAi {
+  /** 대답할 캐릭터 id (기본: characters 의 첫 번째) */
+  who?: string;
+  persona: string;
+  examples?: { chat: string; reply: string; expr?: string }[];
+  /** AI 대답 실패 시 대사 */
+  fallback?: string[];
+  /** 채팅이 조용할 때 잡담 대사 */
+  idle?: string[];
+}
+
 export interface ScriptFile {
   meta: StreamMeta;
+  ai?: ScriptAi;
   characters: Record<string, CharacterDef>;
   triggers?: Trigger[];
   script: Command[];

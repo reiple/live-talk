@@ -670,3 +670,51 @@
 .stage.compact .vote-hint {
   display: none;
 }
+
+/* ---------------- 자유 대화: 지금 답하는 채팅 ---------------- */
+.chat-quote {
+  position: absolute;
+  /* 이름표(왼쪽 150~340px) 오른쪽, 대사창 위 */
+  left: 380px;
+  bottom: calc(40px + 300px * var(--dlg-scale) + 28px);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 1300px;
+  padding: 12px 26px 12px 14px;
+  border-radius: 999px;
+  background: #ffffffee;
+  color: #141a30;
+  font-size: 32px;
+  box-shadow: 0 8px 24px #0006;
+  opacity: 0;
+  translate: 0 20px;
+  transition: opacity 0.25s ease, translate 0.25s ease;
+}
+.chat-quote.on {
+  opacity: 1;
+  translate: 0 0;
+}
+.player:not(.idle) .chat-quote,
+.player.paused .chat-quote {
+  transform: translateY(calc(-1 * var(--ctl-lift, 0px)));
+}
+.quote-tag {
+  flex: none;
+  padding: 2px 14px;
+  border-radius: 999px;
+  background: #33e0a8;
+  color: #062a1e;
+  font-size: 24px;
+  font-weight: 800;
+}
+.quote-user {
+  flex: none;
+  color: #2a6fd6;
+}
+.quote-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

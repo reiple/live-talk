@@ -591,3 +591,11 @@ body.chat-off .chat {
   border-radius: 6px;
   padding: 8px;
 }
+.ai-status {
+  margin-left: 6px;
+  font-weight: 500;
+  color: #ff8a8a;
+}
+.ai-status.ok {
+  color: var(--accent);
+}
