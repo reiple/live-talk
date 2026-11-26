@@ -42,7 +42,7 @@ sudo npx playwright install-deps chromium   # Linux/WSL: libasound2 등 시스�
 
 `public/scripts/*.json` — 예시는 [demo.json](public/scripts/demo.json).
 
-- 명령: `say`, `expr`, `show`, `hide`, `bg`, `effect`(shake/flash/cutin), `sfx`(hit/flash/chime/pop/whoosh), `bgm`, `chat`, `banner`(방송 제목 배너), `notice`(채팅 고정 공지, text 생략 시 내림), `wait`, `label`, `jump`, `call`, `return`, `end`
+- 명령: `say`, `expr`, `show`, `hide`, `bg`, `effect`(shake/flash/cutin), `sfx`(hit/flash/chime/pop/whoosh), `bgm`, `chat`, `banner`(방송 제목 배너), `notice`(채팅 고정 공지, text 생략 시 내림), `vote`(시청자 투표), `wait`, `label`, `jump`, `call`, `return`, `end`
 - 대사 태그: `{red}..{/red}` `{blue}` `{green}` `{yellow}` `{color:#hex}` `{b}` `{shake}` `{wait:ms}` `{speed:배율}`, 리터럴 `{`는 `{{`
 - 표정: `normal`, `smile`, `angry`, `surprised`, `thinking`, `point`, `sad`
 - 배경 프리셋: `studio`, `night`, `cafe` (또는 이미지 경로)
@@ -52,6 +52,20 @@ sudo npx playwright install-deps chromium   # Linux/WSL: libasound2 등 시스�
 - `meta.notice`: 채팅 고정 공지 초기값 (대사 태그로 색상 강조 가능)
 - `say.reactions`: 대사에 맞춰 가상 시청자들이 칠 채팅 목록
 - 대사가 대사창 3줄을 넘으면 자동으로 페이지가 나뉩니다. 클릭하거나 자동 진행 시 다음 페이지로 넘어갑니다.
+
+### 시청자 투표
+
+```json
+{ "cmd": "vote", "question": "케이크를 먹은 범인은?", "seconds": 15, "options": [
+  { "text": "매니저", "jump": "v_manager", "weight": 3 },
+  { "text": "고양이", "jump": "v_cat" }
+] }
+```
+
+- 선택지 2~4개. 시청자는 채팅에 번호(`1`, `!1`, `1번`)를 치거나, 선택지를 클릭하거나, 숫자 키를 눌러 투표합니다 (1인 1표).
+- 시간이 끝나거나 운영 패널에서 **투표 마감**을 누르면 최다 득표 선택지의 `jump` label 로 이동합니다 (동점이면 앞 번호).
+- 이후 대사에서 `$winner`(이긴 선택지), `$winnerPct`(득표율)를 쓸 수 있습니다.
+- `weight`: 가상 시청자가 그 선택지를 고를 상대적 확률 (기본 1, 0이면 봇이 고르지 않음).
 
 ### 채팅 이모티콘
 

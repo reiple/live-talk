@@ -1,3 +1,5 @@
+import type { VoteOption } from '../vote/VotePanel';
+
 export type Position = 'left' | 'center' | 'right';
 
 export interface CharacterDef {
@@ -25,6 +27,11 @@ export type Command =
   | { cmd: 'banner'; text?: string; sub?: string; ms?: number }
   /** 채팅 고정 공지. text 가 없으면 공지를 내린다 */
   | { cmd: 'notice'; text?: string }
+  /**
+   * 시청자 투표 (선택지 2~4개). 이긴 선택지의 jump label 로 이동하고,
+   * 이후 대사에서 $winner(선택지 글자), $winnerPct(득표율) 를 쓸 수 있다.
+   */
+  | { cmd: 'vote'; question: string; options: VoteOption[]; seconds?: number }
   | { cmd: 'wait'; ms: number }
   | { cmd: 'label'; name: string }
   | { cmd: 'jump'; to: string }

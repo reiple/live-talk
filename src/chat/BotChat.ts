@@ -39,6 +39,7 @@ export class BotChat {
   }
 
   stop() {
+    this.stopVoting();
     this.running = false;
     clearTimeout(this.timer);
     this.pending.forEach(clearTimeout);
@@ -59,6 +60,37 @@ export class BotChat {
     }
     this.timer = window.setTimeout(this.tick, rand(700, 2800));
   };
+
+  private voteTimer = 0;
+
+  /**
+   * 투표 참여: 가중치에 따라 번호를 골라 투표하고, 일부는 채팅에도 번호를 친다.
+   * 모든 가중치가 0이면 봇은 투표하지 않는다.
+   */
+  startVoting(weights: number[], cast: (user: string, index: number) => boolean, active: () => boolean) {
+    this.stopVoting();
+    const sum = weights.reduce((a, b) => a + b, 0);
+    if (!this.running || sum <= 0) return;
+    const target = randInt(25, 60);
+    let n = 0;
+    const step = () => {
+      if (!this.running || !active() || n >= target) return;
+      let r = Math.random() * sum;
+      let idx = 0;
+      while (idx < weights.length - 1 && r >= weights[idx]) r -= weights[idx++];
+      const user = `${pick(NICKS)}${randInt(1, 99)}`;
+      if (cast(user, idx)) {
+        n++;
+        if (Math.random() < 0.4) this.emit({ user, text: pick([`${idx + 1}`, `!${idx + 1}`, `${idx + 1}번`]) });
+      }
+      this.voteTimer = window.setTimeout(step, rand(80, 450));
+    };
+    this.voteTimer = window.setTimeout(step, rand(400, 900));
+  }
+
+  stopVoting() {
+    clearTimeout(this.voteTimer);
+  }
 
   /** 대사에 맞춘 반응 채팅 (여러 명이 살짝 시간차를 두고) */
   burst(lines: string[]) {

@@ -64,6 +64,8 @@ export class Stage {
     const y = (hgt - STAGE_H * s) / 2;
     this.el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
     this.scale = s;
+    // 작은 화면(모바일 등): 스테이지 안의 정보성 UI(투표 등)를 키워서 읽을 수 있게
+    this.el.classList.toggle('compact', s < 0.4);
     this.onFit?.(s);
   }
 
