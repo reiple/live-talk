@@ -8,8 +8,16 @@
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 단위 테스트 (대사 태그 파서, 채팅 필터)
+npm test           # 단위 테스트 (대사 태그 파서, 페이지 분할, 채팅 필터)
+npm run test:e2e   # E2E 테스트 (Playwright, 브라우저에서 실제 방송 흐름 검증)
 npm run build      # dist/ 정적 빌드
+```
+
+E2E 테스트를 처음 실행할 때는 브라우저와 시스템 라이브러리가 필요합니다.
+
+```bash
+npx playwright install chromium
+sudo npx playwright install-deps chromium   # Linux/WSL: libasound2 등 시스템 라이브러리
 ```
 
 ## URL 옵션
@@ -40,6 +48,7 @@ npm run build      # dist/ 정적 빌드
 - 배경 프리셋: `studio`, `night`, `cafe` (또는 이미지 경로)
 - `triggers`: 시청자 채팅에 키워드가 있으면 해당 `label` 블록을 호출 (`$user` = 채팅 작성자)
 - `say.reactions`: 대사에 맞춰 가상 시청자들이 칠 채팅 목록
+- 대사가 대사창 3줄을 넘으면 자동으로 페이지가 나뉩니다. 클릭하거나 자동 진행 시 다음 페이지로 넘어갑니다.
 
 ### 캐릭터 이미지 교체
 
