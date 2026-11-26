@@ -42,13 +42,21 @@ sudo npx playwright install-deps chromium   # Linux/WSL: libasound2 등 시스�
 
 `public/scripts/*.json` — 예시는 [demo.json](public/scripts/demo.json).
 
-- 명령: `say`, `expr`, `show`, `hide`, `bg`, `effect`(shake/flash/cutin), `sfx`(hit/flash/chime/pop/whoosh), `bgm`, `chat`, `wait`, `label`, `jump`, `call`, `return`, `end`
+- 명령: `say`, `expr`, `show`, `hide`, `bg`, `effect`(shake/flash/cutin), `sfx`(hit/flash/chime/pop/whoosh), `bgm`, `chat`, `banner`(방송 제목 배너), `notice`(채팅 고정 공지, text 생략 시 내림), `wait`, `label`, `jump`, `call`, `return`, `end`
 - 대사 태그: `{red}..{/red}` `{blue}` `{green}` `{yellow}` `{color:#hex}` `{b}` `{shake}` `{wait:ms}` `{speed:배율}`, 리터럴 `{`는 `{{`
 - 표정: `normal`, `smile`, `angry`, `surprised`, `thinking`, `point`, `sad`
 - 배경 프리셋: `studio`, `night`, `cafe` (또는 이미지 경로)
-- `triggers`: 시청자 채팅에 키워드가 있으면 해당 `label` 블록을 호출 (`$user` = 채팅 작성자)
+- `triggers`: 해당 `label` 블록을 호출하는 조건
+  - `keyword`: 시청자 채팅에 키워드가 있을 때 (`$user` = 채팅 작성자)
+  - `event`: `follow` / `subscribe` / `donation` 이벤트가 생겼을 때 (`$user`, 후원은 `$amount`)
+- `meta.notice`: 채팅 고정 공지 초기값 (대사 태그로 색상 강조 가능)
 - `say.reactions`: 대사에 맞춰 가상 시청자들이 칠 채팅 목록
 - 대사가 대사창 3줄을 넘으면 자동으로 페이지가 나뉩니다. 클릭하거나 자동 진행 시 다음 페이지로 넘어갑니다.
+
+### 채팅 이모티콘
+
+채팅에 `:이름:` 으로 입력하거나 입력창 왼쪽 버튼으로 고릅니다.
+`하루웃음` `하루놀람` `하루눈물` `하루화남` `하트` `케이크` `ㅋㅋ` `박수` — 모두 `src/chat/emotes.ts` 에 코드로 그린 오리지널 SVG입니다.
 
 ### 캐릭터 이미지 교체
 

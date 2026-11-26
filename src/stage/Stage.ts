@@ -1,5 +1,8 @@
 import { $, h, fmtNum, reducedMotion } from '../util';
 
+export type AlertKind = 'donation' | 'follow' | 'subscribe';
+const ALERT_ICON: Record<AlertKind, string> = { donation: '★', follow: '♥', subscribe: '♛' };
+
 export const STAGE_W = 1920;
 export const STAGE_H = 1080;
 
@@ -32,6 +35,10 @@ export class Stage {
   private cutin: HTMLElement;
   private alerts: HTMLElement;
   private screenMsg: HTMLElement;
+  private bannerEl: HTMLElement;
+  private bannerTimer = 0;
+  /** 스테이지 배율 (화면 px = 스테이지 px × scale) */
+  scale = 1;
 
   constructor(wrap: HTMLElement) {
     this.wrap = wrap;
@@ -41,9 +48,12 @@ export class Stage {
     this.cutin = $('#fx-cutin', wrap);
     this.alerts = $('#alert-layer', wrap);
     this.screenMsg = $('#screen-msg', wrap);
+    this.bannerEl = $('#banner', wrap);
     new ResizeObserver(() => this.fit()).observe(wrap);
     this.fit();
   }
+
+  onFit?: (scale: number) => void;
 
   /** 1920×1080 스테이지를 컨테이너 크기에 맞춰 스케일 (letterbox) */
   fit() {
@@ -53,6 +63,8 @@ export class Stage {
     const x = (w - STAGE_W * s) / 2;
     const y = (hgt - STAGE_H * s) / 2;
     this.el.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+    this.scale = s;
+    this.onFit?.(s);
   }
 
   setBackground(src: string, transition: 'cut' | 'fade' = 'fade') {
@@ -89,15 +101,39 @@ export class Stage {
     }
   }
 
-  /** 후원 알림 팝업 */
-  donationAlert(user: string, amount: number, text: string) {
-    const card = h('div', 'alert-card');
+  /** 후원 / 팔로우 / 구독 알림 팝업 */
+  alert(kind: AlertKind, user: string, opts: { amount?: number; text?: string } = {}) {
+    const card = h('div', `alert-card alert-${kind}`);
     const head = h('div', 'alert-head');
-    head.append(h('b', '', user), document.createTextNode(` 님이 `), h('em', '', `${fmtNum(amount)}코인`), document.createTextNode(' 후원!'));
-    card.append(h('div', 'alert-icon', '★'), head, h('div', 'alert-msg', text));
+    head.append(h('b', '', user), document.createTextNode(' 님이 '));
+    if (kind === 'donation') {
+      head.append(h('em', '', `${fmtNum(opts.amount ?? 0)}코인`), document.createTextNode(' 후원!'));
+    } else if (kind === 'follow') {
+      head.append(document.createTextNode('팔로우했어요!'));
+    } else {
+      head.append(h('em', '', '구독'), document.createTextNode('했어요!'));
+    }
+    card.append(h('div', 'alert-icon', ALERT_ICON[kind]), head);
+    if (opts.text) card.append(h('div', 'alert-msg', opts.text));
+    // 같은 자리(상단)를 쓰는 제목 배너는 알림이 오면 먼저 들어간다
+    this.bannerEl.classList.remove('on');
+    // 알림이 너무 많이 쌓이지 않게 오래된 것부터 제거
+    while (this.alerts.childElementCount >= 3) this.alerts.firstElementChild?.remove();
     this.alerts.append(card);
-    setTimeout(() => card.classList.add('out'), 4200);
-    setTimeout(() => card.remove(), 4800);
+    const ms = kind === 'donation' ? 4200 : 3000;
+    setTimeout(() => card.classList.add('out'), ms);
+    setTimeout(() => card.remove(), ms + 600);
+  }
+
+  /** 방송 제목 배너 (좌상단에서 슬라이드 인) */
+  banner(title: string, sub: string, ms = 6000) {
+    this.bannerEl.querySelector('.banner-sub')!.textContent = sub;
+    this.bannerEl.querySelector('.banner-title')!.textContent = title;
+    this.bannerEl.classList.remove('on');
+    void this.bannerEl.offsetWidth;
+    this.bannerEl.classList.add('on');
+    clearTimeout(this.bannerTimer);
+    this.bannerTimer = window.setTimeout(() => this.bannerEl.classList.remove('on'), ms);
   }
 
   showScreen(msg: string | null) {

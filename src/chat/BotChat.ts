@@ -12,6 +12,7 @@ const LINES = [
   '목소리 좋다', '하루 화이팅!', '이 방송 맛집이네', '처음 왔어요!', '헉', 'ㄷㄷ',
   '오 진짜?', '다음 방송 언제 해요?', '퇴근길에 보는 중', '배경 예쁘다', '와 ㅋㅋㅋ',
   '공감ㅋㅋ', '하루야 사랑해', '오늘 컨텐츠 뭐예요?', '팔로우 박고 갑니다', '👀', '👏👏👏',
+  ':하루웃음:', ':하트: :하트:', ':ㅋㅋ:', ':박수: :박수:', '오늘도 :하트:', ':하루놀람:', '귀여워 :하루웃음:',
 ];
 
 const DONATION_LINES = ['맛있는 거 드세요!', '방송 잘 보고 있어요', '응원합니다!!', '오늘도 힐링하고 가요'];
@@ -23,9 +24,12 @@ export class BotChat {
   private lastDonation = Date.now();
   private pending: number[] = [];
 
+  private lastEvent = Date.now();
+
   constructor(
     private emit: (m: ChatMessage) => void,
     private onDonation: (user: string, amount: number, text: string) => void,
+    private onFollow?: (user: string, kind: 'follow' | 'subscribe') => void,
   ) {}
 
   start() {
@@ -47,6 +51,9 @@ export class BotChat {
     if (now - this.lastDonation > 50000 && Math.random() < 0.08) {
       this.lastDonation = now;
       this.onDonation(pick(NICKS), pick([1000, 1000, 2000, 3000, 5000, 10000]), pick(DONATION_LINES));
+    } else if (this.onFollow && now - this.lastEvent > 35000 && Math.random() < 0.1) {
+      this.lastEvent = now;
+      this.onFollow(pick(NICKS), Math.random() < 0.75 ? 'follow' : 'subscribe');
     } else {
       this.emit(this.randomMsg(pick(LINES)));
     }

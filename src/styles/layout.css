@@ -584,3 +584,10 @@ body.chat-off .chat {
     height: 34px;
   }
 }
+
+.admin-say input {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+}

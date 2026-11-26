@@ -220,8 +220,11 @@ test('채팅 입력은 HTML로 해석되지 않는다 (XSS 방지)', async ({ pa
   const payload = '<img src=x onerror="window.__xss=1">';
   await page.locator('#chat-input').fill(payload);
   await page.locator('#chat-input').press('Enter');
-  await expect(page.locator('#chat-list')).toContainText(payload);
-  await expect(page.locator('#chat-list img')).toHaveCount(0);
+  const mine = page.locator('.msg', { has: page.locator('.badge-me') }).last();
+  await expect(mine).toContainText(payload);
+  await expect(mine.locator('img')).toHaveCount(0);
+  // 봇 채팅의 이모티콘(img.emote) 외에는 어떤 이미지도 생기지 않는다
+  await expect(page.locator('#chat-list img:not(.emote)')).toHaveCount(0);
   expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();
 });
 
@@ -344,4 +347,125 @@ test.describe('모바일', () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBe(false);
   });
+});
+
+/* ------------------------------------------------------------------ */
+/* 방송 연출 보강: 컨트롤 바, 배너/알림, 공지, 이모티콘, 시선              */
+/* ------------------------------------------------------------------ */
+
+test('컨트롤 바가 보일 때 대사창이 올라가서 자막이 가려지지 않는다', async ({ page }) => {
+  const long = '컨트롤 바에 가려지면 안 되는 세 줄짜리 긴 대사입니다. '.repeat(4);
+  await start(page, fixture([{ cmd: 'say', who: 'host', text: long }]), { charMs: 0, auto: false });
+  await typed(page);
+  const r = (await stage(page).boundingBox())!;
+  await page.mouse.move(r.x + r.width / 2, r.y + r.height / 3);
+  await expect(page.locator('#player')).not.toHaveClass(/\bidle\b/);
+  await page.waitForTimeout(400); // 올라가는 애니메이션
+  const lastChar = (await page.locator('.dlg-text .ch:not(.off-page)').last().boundingBox())!;
+  const ctlButton = (await page.locator('#btn-play').boundingBox())!;
+  expect(lastChar.y + lastChar.height).toBeLessThanOrEqual(ctlButton.y);
+});
+
+test('팔로우 버튼 → 화면 알림 + 이벤트 트리거로 감사 대사', async ({ page }) => {
+  await start(
+    page,
+    fixture(
+      [
+        { cmd: 'say', who: 'host', text: '본편' },
+        { cmd: 'say', who: 'host', text: '본편 끝' },
+        { cmd: 'end' },
+        { cmd: 'label', name: 'thanks' },
+        { cmd: 'say', who: 'host', text: '$user님 팔로우 고마워!' },
+        { cmd: 'return' },
+      ],
+      { triggers: [{ event: 'follow', call: 'thanks' }] },
+    ),
+  );
+  await typed(page);
+  await page.locator('#btn-follow').click();
+  await expect(page.locator('#btn-follow')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.alert-follow')).toContainText('팔로우했어요');
+  await expect(page.locator('#chat-list')).toContainText('시청자(나) 님이 팔로우했습니다.');
+  await stage(page).click();
+  await expect(text(page)).toHaveText('시청자(나)님 팔로우 고마워!');
+});
+
+test('구독 버튼 → 구독 알림, 상태가 유지된다', async ({ page }) => {
+  await start(page, fixture([{ cmd: 'say', who: 'host', text: '대기' }]));
+  await page.locator('#btn-sub').click();
+  await expect(page.locator('.alert-subscribe')).toBeVisible();
+  await expect(page.locator('#btn-sub')).toHaveText('♛ 구독 중');
+  await page.reload();
+  await expect(page.locator('#btn-sub')).toHaveText('♛ 구독 중');
+});
+
+test('banner 명령으로 방송 제목 배너가 나온다', async ({ page }) => {
+  await start(page, fixture([{ cmd: 'banner' }, { cmd: 'say', who: 'host', text: '대기' }]));
+  const banner = page.locator('#banner');
+  await expect(banner).toHaveClass(/\bon\b/);
+  await expect(banner.locator('.banner-title')).toHaveText('테스트 방송');
+  await expect(banner.locator('.banner-sub')).toHaveText('테스터');
+});
+
+test('고정 공지: 초기값 표시, 닫기, 운영 패널에서 변경/내리기, notice 명령', async ({ page }) => {
+  await start(
+    page,
+    fixture(
+      [
+        { cmd: 'say', who: 'host', text: '하나' },
+        { cmd: 'notice', text: '스크립트 공지' },
+        { cmd: 'say', who: 'host', text: '둘' },
+      ],
+      { meta: { title: '테스트 방송', channel: '테스터', notice: '{green}안녕{/green}을 쳐 보세요' } },
+    ),
+  );
+  const notice = page.locator('#chat-notice');
+  await expect(notice).toBeVisible();
+  await expect(notice.locator('.notice-text')).toHaveText('안녕을 쳐 보세요');
+  await expect(notice.locator('.notice-text span').first()).toHaveCSS('color', 'rgb(95, 227, 154)');
+
+  await notice.locator('.notice-close').click();
+  await expect(notice).toBeHidden();
+
+  await page.locator('#admin-btn').click();
+  await page.locator('#adm-notice-text').fill('운영자 공지 <b>태그</b>');
+  await page.locator('#adm-notice button[type=submit]').click();
+  await expect(notice).toBeVisible();
+  await expect(notice.locator('.notice-text')).toHaveText('운영자 공지 <b>태그</b>');
+  await expect(notice.locator('b')).toHaveCount(0);
+  await page.locator('#adm-notice-clear').click();
+  await expect(notice).toBeHidden();
+  await page.locator('#admin-close').click();
+
+  await typed(page);
+  await stage(page).click();
+  await expect(notice.locator('.notice-text')).toHaveText('스크립트 공지');
+});
+
+test('이모티콘: 선택창에서 넣으면 코드가 입력되고, 채팅에 이미지로 표시된다', async ({ page }) => {
+  await start(page, fixture([{ cmd: 'say', who: 'host', text: '대기' }]));
+  await page.locator('#emote-btn').click();
+  await expect(page.locator('#emote-picker')).toBeVisible();
+  await page.locator('#emote-picker button[title="하트"]').click();
+  await expect(page.locator('#chat-input')).toHaveValue(':하트: ');
+  await page.locator('#chat-input').press('Enter');
+
+  const mine = page.locator('.msg', { has: page.locator('.badge-me') }).last();
+  await expect(mine.locator('img.emote')).toHaveAttribute('alt', ':하트:');
+  await expect(mine.locator('img.emote')).toHaveClass(/big/); // 이모티콘만 있으면 크게
+
+  await page.locator('#chat-input').fill('없는 :코드: 는 글자로');
+  await page.locator('#chat-input').press('Enter');
+  await expect(page.locator('.msg').last()).toContainText('없는 :코드: 는 글자로');
+});
+
+test('캐릭터 시선이 마우스를 따라간다', async ({ page }) => {
+  await start(page, fixture([{ cmd: 'say', who: 'host', text: '어디 보고 있어?' }]));
+  await expect(page.locator('.char')).toHaveCount(1);
+  const iris = page.locator('.char .iris').first();
+  const r = (await stage(page).boundingBox())!;
+  await page.mouse.move(r.x + 5, r.y + r.height / 3);
+  await expect.poll(() => iris.evaluate((e) => (e as SVGElement).style.transform)).toMatch(/translate\(-/);
+  await page.mouse.move(r.x + r.width - 5, r.y + r.height / 3);
+  await expect.poll(() => iris.evaluate((e) => (e as SVGElement).style.transform)).toMatch(/translate\(\d/);
 });
