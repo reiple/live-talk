@@ -11,11 +11,14 @@ import { ScriptRunner } from './script/ScriptRunner';
 import type { ScriptFile, Trigger } from './script/types';
 import { CharacterLayer, EXPRESSION_NAMES } from './stage/characters';
 import { Stage } from './stage/Stage';
+import { AiClient } from './ai/AiClient';
+import { FreeTalk } from './ai/FreeTalk';
 import { ME, parseVoteText, percent, VotePanel } from './vote/VotePanel';
 import { $, Gate, fmtNum, fmtTime, h, nameColor, rand, randInt, reducedMotion, store } from './util';
 
 const params = new URLSearchParams(location.search);
-const SCRIPT_URL = `${import.meta.env.BASE_URL}scripts/${(params.get('script') ?? 'demo').replace(/[^\w-]/g, '')}.json`;
+const SCRIPT_NAME = (params.get('script') ?? 'demo').replace(/[^\w-]/g, '') || 'demo';
+const SCRIPT_URL = `${import.meta.env.BASE_URL}scripts/${SCRIPT_NAME}.json`;
 
 /* ---------------- 설정 ---------------- */
 interface Settings extends DialogueSettings {
@@ -63,6 +66,8 @@ async function boot() {
   /* ---- 이벤트 트리거 (채팅 키워드 / 팔로우·구독·후원) ---- */
   const cooldowns = new Map<Trigger, number>();
   const fire = (match: (t: Trigger) => boolean, vars: Record<string, string>) => {
+    // 자유 대화 중에는 스크립트 반응 대신 AI 가 직접 대답한다
+    if (freetalk.active) return;
     const now = Date.now();
     for (const t of file.triggers ?? []) {
       if (!match(t) || (cooldowns.get(t) ?? 0) > now) continue;
@@ -78,6 +83,7 @@ async function boot() {
     sound.sfx('chime');
     stats.viewers += randInt(3, 12);
     if (react) fire((t) => t.event === 'donation', { user, amount: fmtNum(amount) });
+    if (react) freetalk.offer({ user, text, donation: amount });
   };
   const follow = (user: string, kind: 'follow' | 'subscribe') => {
     stage.alert(kind, user);
@@ -85,8 +91,44 @@ async function boot() {
     sound.sfx(kind === 'follow' ? 'pop' : 'chime');
     stats.viewers += randInt(1, 4);
     fire((t) => t.event === kind, { user });
+    freetalk.offer({ user, text: kind === 'follow' ? '방금 팔로우했어요' : '방금 구독했어요', event: true });
   };
-  const bots = new BotChat((m) => chat.add(m), donate, follow);
+  const bots = new BotChat(
+    (m) => {
+      chat.add(m);
+      freetalk.offer({ user: m.user, text: m.text });
+    },
+    donate,
+    follow,
+  );
+
+  /* ---- AI 자유 대화 (SCR-06) ---- */
+  const aiCfg = file.ai;
+  const aiHostId = aiCfg?.who && file.characters[aiCfg.who] ? aiCfg.who : hostId;
+  const ai = new AiClient(SCRIPT_NAME);
+  const quoteEl = $('#chat-quote');
+  const freetalk: FreeTalk = new FreeTalk({
+    ai,
+    gate,
+    hostId: aiHostId,
+    hostName: file.characters[aiHostId]?.name ?? '',
+    fallback: aiCfg?.fallback ?? [],
+    idle: aiCfg?.idle ?? [],
+    say: (text, expr) => runner.speak({ cmd: 'say', who: aiHostId, expr, text }),
+    setExpr: (expr) => {
+      if (!chars.has(aiHostId)) chars.show(aiHostId, 'center');
+      chars.setExpr(aiHostId, expr);
+    },
+    quote: (c) => {
+      quoteEl.classList.toggle('on', !!c);
+      if (c) {
+        $('.quote-user', quoteEl).textContent = c.user;
+        $('.quote-text', quoteEl).textContent = c.text;
+      }
+    },
+    context: () => dialogue.history.slice(-3).map((e) => e.text),
+    status: (msg) => chat.add({ user: '', system: true, text: msg }),
+  });
 
   /* ---- 시청자 투표 (DLG-14) ---- */
   const vote: VotePanel = new VotePanel($('#stage'), gate, {
@@ -114,6 +156,7 @@ async function boot() {
     sound,
     gate,
     vote,
+    freetalk,
     chat: (user, text, donation) => (donation ? donate(user, donation, text, false) : chat.add({ user, text })),
     react: (lines) => bots.burst(lines),
     notice: (text) => chat.setNotice(text),
@@ -136,6 +179,7 @@ async function boot() {
       return;
     }
     fire((t) => !!t.keyword && text.includes(t.keyword), { user: '시청자(나)' });
+    freetalk.offer({ user: '시청자(나)', text, me: true });
   });
 
   /* ---- 방송 정보 ---- */
@@ -176,7 +220,7 @@ async function boot() {
   });
 
   setupPlayer({ gate, sound, dialogue, stage, chars, runner, vote, startBroadcast });
-  setupAdmin({ runner, gate, dialogue, chars, stage, chat, vote, hostId, file, donate, follow, startBroadcast });
+  setupAdmin({ runner, gate, dialogue, chars, stage, chat, vote, ai, freetalk, hostId, file, donate, follow, startBroadcast });
 }
 
 /* ================================================================== */
@@ -421,6 +465,8 @@ function setupAdmin(x: {
   stage: Stage;
   chat: ChatPanel;
   vote: VotePanel;
+  ai: AiClient;
+  freetalk: FreeTalk;
   hostId: string;
   file: ScriptFile;
   donate: (u: string, a: number, t: string) => void;
@@ -466,6 +512,25 @@ function setupAdmin(x: {
   $('#adm-follow').addEventListener('click', () => x.follow('테스트팔로워', 'follow'));
   $('#adm-sub').addEventListener('click', () => x.follow('테스트구독자', 'subscribe'));
   $('#adm-vote-close').addEventListener('click', () => x.vote.close());
+
+  // AI 자유 대화
+  const aiStatus = $('#adm-ai-status');
+  const refreshAi = async () => {
+    aiStatus.textContent = '확인 중…';
+    const h = await x.ai.health();
+    aiStatus.textContent = h.ok ? `연결됨 · ${h.provider} · ${h.model}` : `연결 안 됨${h.error ? ` (${h.error})` : ''}`;
+    aiStatus.classList.toggle('ok', h.ok);
+  };
+  $('#admin-btn').addEventListener('click', () => {
+    if (!panel.hidden) void refreshAi();
+  });
+  $('#adm-ai-start').addEventListener('click', () => {
+    ensureStarted();
+    if (x.freetalk.active) return;
+    if (x.runner.state !== 'running') x.stage.showScreen(null);
+    x.runner.inject({ cmd: 'freetalk', seconds: 60 });
+  });
+  $('#adm-ai-stop').addEventListener('click', () => x.freetalk.stop());
   $('#adm-banner').addEventListener('click', () => x.stage.banner(x.file.meta.title, x.file.meta.channel));
 
   // 채팅 고정 공지 (CHT-07)

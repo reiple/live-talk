@@ -69,6 +69,9 @@
                 <span class="banner-live">ON AIR</span>
                 <div class="banner-body"><span class="banner-sub"></span><b class="banner-title"></b></div>
               </div>
+              <div class="chat-quote" id="chat-quote" aria-hidden="true">
+                <span class="quote-tag">채팅</span><b class="quote-user"></b><span class="quote-text"></span>
+              </div>
               <div class="dialogue empty" id="dialogue">
                 <div class="nameplate" hidden><span></span></div>
                 <p class="dlg-text"></p>
@@ -198,6 +201,11 @@
       <div class="admin-sec">투표</div>
       <div class="admin-row wrap">
         <button class="btn ghost" id="adm-vote-close">투표 마감</button>
+      </div>
+      <div class="admin-sec">AI 자유 대화 <small id="adm-ai-status" class="ai-status">확인 전</small></div>
+      <div class="admin-row wrap">
+        <button class="btn ghost" id="adm-ai-start">자유 대화 시작 (60초)</button>
+        <button class="btn ghost" id="adm-ai-stop">끝내기</button>
       </div>
       <div class="admin-sec">알림 테스트</div>
       <div class="admin-row wrap">

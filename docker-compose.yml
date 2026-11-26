@@ -1,0 +1,74 @@
+# 로컬 LLM + AI 대화 API 서버
+#
+#   Ollama (기본):  npm run ai:up                      (= docker compose --profile ollama up -d --build)
+#   vLLM 으로 전환: npm run ai:down && LLM_PROVIDER=vllm npm run ai:up
+#
+# LLM_PROVIDER 하나로 띄울 컨테이너(profile)와 api 서버의 주소/모델/옵션이 함께 바뀐다.
+# api 서버는 OpenAI 호환 API(/v1/chat/completions)만 쓰므로 Ollama, vLLM 둘 다 그대로 동작한다.
+# 두 LLM 은 같은 GPU 를 쓰므로 동시에 띄우지 않는다 (ai:down 후 전환).
+
+services:
+  ollama:
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
+    profiles: ["ollama"]
+    ports: ["11434:11434"]
+    volumes: [ollama:/root/.ollama]
+    environment:
+      OLLAMA_KEEP_ALIVE: 24h # 모델을 메모리에 유지해 첫 응답 지연을 줄임
+    gpus: all
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # 최초 1회 모델 다운로드 (이미 있으면 바로 끝남)
+  ollama-pull:
+    image: ollama/ollama:${OLLAMA_IMAGE_TAG:-latest}
+    profiles: ["ollama"]
+    depends_on:
+      ollama: { condition: service_healthy }
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "${OLLAMA_MODEL:-qwen3:8b}"]
+    restart: "no"
+
+  vllm:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG:-latest}
+    profiles: ["vllm"]
+    ports: ["8000:8000"]
+    ipc: host
+    gpus: all
+    volumes: [hf-cache:/root/.cache/huggingface]
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen3-4B-AWQ}
+      --served-model-name ${VLLM_MODEL:-Qwen/Qwen3-4B-AWQ}
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-4096}
+      --gpu-memory-utilization ${VLLM_GPU_MEM:-0.85}
+    restart: unless-stopped
+
+  api:
+    build: ./server
+    ports: ["8787:8787"]
+    environment:
+      PORT: 8787
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: http://ollama:11434/v1
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      VLLM_BASE_URL: http://vllm:8000/v1
+      VLLM_MODEL: ${VLLM_MODEL:-Qwen/Qwen3-4B-AWQ}
+      # 아래 값을 지정하면 공급자 기본값보다 우선한다
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_EXTRA_BODY: ${LLM_EXTRA_BODY:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-20000}
+      SCRIPTS_DIR: /app/scripts
+    volumes:
+      - ./public/scripts:/app/scripts:ro
+    restart: unless-stopped
+
+volumes:
+  ollama: {}
+  hf-cache: {}

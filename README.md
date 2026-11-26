@@ -20,6 +20,70 @@ npx playwright install chromium
 sudo npx playwright install-deps chromium   # Linux/WSL: libasound2 등 시스템 라이브러리
 ```
 
+## AI 자유 대화 (로컬 LLM)
+
+스크립트의 `freetalk` 명령이나 운영 패널의 **자유 대화 시작** 버튼을 누르면, 정해진 시간 동안 캐릭터가 시청자 채팅에 AI로 대답합니다.
+AI 서버가 꺼져 있으면 자유 대화만 건너뛰고 방송은 정상 진행됩니다.
+
+```
+브라우저 ──/api──▶ Vite 프록시 ──▶ api 서버 (server/, :8787) ──OpenAI 호환 API──▶ Ollama (:11434) 또는 vLLM (:8000)
+```
+
+### 실행
+
+필요: Docker + NVIDIA Container Toolkit (GPU 사용)
+
+```bash
+npm run ai:up      # Ollama + api 서버 시작. 처음 한 번 모델(qwen3:8b, 약 5GB)을 내려받음
+npm run dev        # 웹페이지 (http://localhost:5173), /api 는 api 서버로 프록시
+npm run ai:logs    # api 서버 로그
+npm run ai:down    # 모두 종료
+```
+
+연결 확인: `curl localhost:8787/api/health` 또는 운영 패널의 **AI 자유 대화** 상태 표시.
+
+### vLLM 으로 전환
+
+api 서버는 OpenAI 호환 API(`/v1/chat/completions`)만 쓰므로, `LLM_PROVIDER` 하나로 전환됩니다.
+두 LLM은 같은 GPU를 쓰므로 먼저 내리고 전환하세요.
+
+```bash
+npm run ai:down
+LLM_PROVIDER=vllm npm run ai:up     # vLLM + api 서버 (Ollama 는 뜨지 않음)
+```
+
+| 설정 (`.env` 또는 환경 변수) | Ollama 기본값 | vLLM 기본값 |
+|---|---|---|
+| `LLM_PROVIDER` | `ollama` | `vllm` |
+| 모델 | `OLLAMA_MODEL=qwen3:8b` | `VLLM_MODEL=Qwen/Qwen3-4B-AWQ` |
+| 생각 모드 끄기 (자동) | `{"reasoning_effort":"none"}` | `{"chat_template_kwargs":{"enable_thinking":false}}` |
+| 개별 지정 (우선) | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_EXTRA_BODY`, `LLM_TIMEOUT_MS` | 〃 |
+
+예시는 [.env.example](.env.example). 8GB GPU에서 vLLM은 4B 압축(AWQ) 모델부터 권장합니다 (vLLM 은 GPU 메모리를 미리 확보하므로 `VLLM_GPU_MEM`, `VLLM_MAX_MODEL_LEN` 으로 조절).
+
+Docker 없이 api 서버만 실행할 수도 있습니다 (Node 24 이상, 의존성 없음): `npm run server`
+
+### 스크립트 설정
+
+```json
+"ai": {
+  "persona": "너는 라이브 방송 중인 버튜버 \"하루\"다. …",
+  "examples": [{ "chat": "하루야 안녕!", "expr": "smile", "reply": "안녕~ 와 줘서 고마워!" }],
+  "fallback": ["앗, 채팅을 놓쳤다! 다시 한번만 말해 줄래?"],
+  "idle": ["채팅이 조용하네~ 다들 오늘 저녁 뭐 먹었어?"]
+}
+```
+```json
+{ "cmd": "freetalk", "seconds": 60 }
+```
+
+- 캐릭터 설정(`persona`, `examples`)은 브라우저가 보내지 않고 **서버가 스크립트 파일에서 직접 읽습니다.**
+- 모든 채팅에 답하지 않고 하나씩 고릅니다. 우선순위: 내 채팅 > 후원 > 팔로우/구독 > 이름 부르기·질문 > 일반. `ㅋㅋㅋ`, 투표 번호, 이모티콘만 있는 채팅, 20초 지난 채팅은 건너뜁니다.
+- 대답을 기다리는 동안 캐릭터는 고민하는 표정이고, 대사창 위에 지금 답하는 채팅이 표시됩니다.
+- AI 응답 실패 시 `fallback`, 12초 동안 채팅이 없으면 `idle` 대사를 씁니다.
+- 자유 대화 중에는 키워드 반응(`triggers`)이 끼어들지 않습니다.
+- 안전장치: 채팅은 데이터 블록으로만 전달(채팅 속 지시 무시 규칙), JSON 스키마로 출력 강제, 이모지·대사 태그 제거, 금칙어 마스킹, 길이 제한, IP 당 분당 요청 제한.
+
 ## URL 옵션
 
 | 옵션 | 설명 |

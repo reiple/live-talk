@@ -3,6 +3,7 @@ import type { DialogueBox } from '../dialogue/DialogueBox';
 import type { CharacterLayer } from '../stage/characters';
 import type { Stage } from '../stage/Stage';
 import { Gate, sleep } from '../util';
+import type { FreeTalk } from '../ai/FreeTalk';
 import { percent, type VotePanel } from '../vote/VotePanel';
 import type { Command, ScriptFile } from './types';
 
@@ -13,6 +14,7 @@ export interface RunnerDeps {
   sound: SoundManager;
   gate: Gate;
   vote: VotePanel;
+  freetalk: FreeTalk;
   /** 스크립트의 chat 명령 */
   chat(user: string, text: string, donation?: number): void;
   /** say 의 reactions → 봇 채팅 반응 */
@@ -50,6 +52,7 @@ export class ScriptRunner {
     this.pc = 0;
     this.stack = [];
     this.injected = [];
+    this.d.freetalk.stop();
     this.d.vote.abort();
     this.d.dialogue.abort();
     this.d.dialogue.clear();
@@ -61,6 +64,7 @@ export class ScriptRunner {
 
   stop() {
     this.epoch++;
+    this.d.freetalk.stop();
     this.d.vote.abort();
     this.d.dialogue.abort();
     this.state = 'ended';
@@ -84,6 +88,11 @@ export class ScriptRunner {
       }
     }
     if (ep === this.epoch) this.state = 'ended';
+  }
+
+  /** 스크립트 흐름과 별개로 대사 하나를 바로 말한다 (자유 대화용). 같은 say 경로를 쓴다. */
+  async speak(c: Extract<Command, { cmd: 'say' }>) {
+    await this.exec(c, this.epoch);
   }
 
   hasLabel(name: string) {
@@ -184,6 +193,9 @@ export class ScriptRunner {
         return;
       case 'notice':
         this.d.notice(c.text);
+        return;
+      case 'freetalk':
+        await this.d.freetalk.run(c.seconds ?? 60, () => ep === this.epoch);
         return;
       case 'vote': {
         if (!c.options || c.options.length < 2) return;

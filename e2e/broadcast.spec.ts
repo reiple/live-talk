@@ -574,3 +574,111 @@ test('투표 중 처음부터 다시 시작하면 투표가 취소된다', async
   await expect(text(page)).toHaveText('투표 시작!');
   await expect(page.locator('#chat-list')).not.toContainText('[투표 결과]');
 });
+
+/* ------------------------------------------------------------------ */
+/* AI 자유 대화 (SCR-06) — /api 는 가짜 응답으로 대체 (실제 모델 호출 없음)  */
+/* ------------------------------------------------------------------ */
+
+const AUTO = { charMs: 0, auto: true, autoDelay: 300 };
+
+const freetalkScript = (seconds = 30) =>
+  fixture(
+    [
+      { cmd: 'freetalk', seconds },
+      { cmd: 'say', who: 'host', text: '자유 대화 끝' },
+      { cmd: 'end' },
+      { cmd: 'label', name: 'greet' },
+      { cmd: 'say', who: 'host', text: '스크립트 인사' },
+      { cmd: 'return' },
+    ],
+    {
+      triggers: [{ keyword: '안녕', call: 'greet' }],
+      ai: { persona: '테스트 캐릭터', fallback: ['준비된 대사'], idle: [] },
+    },
+  );
+
+type ReplyBody = { script: string; who: string; chat: { user: string; text: string }; history: unknown[]; context: string[] };
+
+/** /api 가짜 응답. reply 는 받은 채팅을 그대로 되돌려준다. */
+async function mockAi(page: Page, opts: { healthy?: boolean; fail?: boolean; delay?: number } = {}) {
+  const bodies: ReplyBody[] = [];
+  await page.route('**/api/health', (r) =>
+    r.fulfill({
+      status: opts.healthy === false ? 503 : 200,
+      json: { ok: opts.healthy !== false, provider: 'mock', model: 'mock-model' },
+    }),
+  );
+  await page.route('**/api/reply', async (r) => {
+    const body = r.request().postDataJSON() as ReplyBody;
+    bodies.push(body);
+    if (opts.delay) await new Promise((res) => setTimeout(res, opts.delay));
+    if (opts.fail) return r.fulfill({ status: 502, json: { error: 'LLM down' } });
+    return r.fulfill({ json: { expr: 'surprised', text: `대답: ${body.chat.text}` } });
+  });
+  return bodies;
+}
+
+test('자유 대화: 내 채팅이 우선 선택되고, 채팅 표시 → AI 대답 → 표시 해제', async ({ page }) => {
+  const bodies = await mockAi(page, { delay: 400 });
+  await start(page, freetalkScript(), AUTO);
+  await expect(page.locator('#chat-list')).toContainText('자유 대화 시작');
+
+  await page.locator('#chat-input').fill('하루 안녕? 오늘 기분 어때');
+  await page.locator('#chat-input').press('Enter');
+
+  const quote = page.locator('#chat-quote');
+  await expect(quote).toHaveClass(/\bon\b/);
+  await expect(quote).toContainText('하루 안녕? 오늘 기분 어때', { timeout: 10_000 });
+  await expect(text(page)).toHaveText('대답: 하루 안녕? 오늘 기분 어때', { timeout: 10_000 });
+
+  const mine = bodies.find((b) => b.chat.text === '하루 안녕? 오늘 기분 어때')!;
+  expect(mine.script).toBe('demo');
+  expect(mine.who).toBe('host');
+  expect(mine.chat.user).toBe('시청자(나)');
+  // 자유 대화 중에는 '안녕' 키워드 스크립트 반응이 끼어들지 않는다
+  await expect(page.locator('.dlg-text')).not.toHaveText('스크립트 인사');
+});
+
+test('자유 대화: AI 서버 오류 시 준비된 대사로 대신한다', async ({ page }) => {
+  await mockAi(page, { fail: true });
+  await start(page, freetalkScript(), AUTO);
+  await page.locator('#chat-input').fill('질문 있어요?');
+  await page.locator('#chat-input').press('Enter');
+  await expect(text(page)).toHaveText('준비된 대사', { timeout: 10_000 });
+});
+
+test('자유 대화: AI 서버가 없으면 건너뛰고 스크립트를 계속한다', async ({ page }) => {
+  await mockAi(page, { healthy: false });
+  await start(page, freetalkScript(), AUTO);
+  await expect(page.locator('#chat-list')).toContainText('AI 서버에 연결되지 않아 자유 대화를 건너뜁니다');
+  await expect(text(page)).toHaveText('자유 대화 끝');
+});
+
+test('자유 대화: 시간이 끝나거나 운영 패널에서 끝내면 다음 스크립트로 넘어간다', async ({ page }) => {
+  await mockAi(page);
+  await start(page, freetalkScript(300), AUTO);
+  await expect(page.locator('#chat-list')).toContainText('자유 대화 시작');
+  await page.locator('#admin-btn').click();
+  await expect(page.locator('#adm-ai-status')).toHaveText('연결됨 · mock · mock-model');
+  await page.locator('#adm-ai-stop').click();
+  await expect(text(page)).toHaveText('자유 대화 끝', { timeout: 10_000 });
+});
+
+test('자유 대화: 정해진 시간이 지나면 스스로 끝난다', async ({ page }) => {
+  await mockAi(page);
+  await start(page, freetalkScript(2), AUTO);
+  await expect(page.locator('#chat-list')).toContainText('자유 대화 시작 (2초)');
+  await expect(text(page)).toHaveText('자유 대화 끝', { timeout: 8_000 });
+});
+
+test('자유 대화: 운영 패널에서 시작할 수 있다', async ({ page }) => {
+  await mockAi(page);
+  await start(page, fixture([{ cmd: 'say', who: 'host', text: '본편' }], { ai: { persona: 'x', fallback: ['f'] } }), AUTO);
+  await page.locator('#admin-btn').click();
+  await page.locator('#adm-ai-start').click();
+  await page.locator('#admin-close').click();
+  await expect(page.locator('#chat-list')).toContainText('자유 대화 시작 (60초)', { timeout: 10_000 });
+  await page.locator('#chat-input').fill('운영 패널로 시작했어?');
+  await page.locator('#chat-input').press('Enter');
+  await expect(text(page)).toHaveText('대답: 운영 패널로 시작했어?', { timeout: 10_000 });
+});

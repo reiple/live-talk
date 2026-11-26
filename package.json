@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json && vite build",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json && tsc --noEmit -p server/tsconfig.json && vite build",
     "preview": "vite preview",
-    "test": "vitest run tests",
-    "test:e2e": "playwright test"
+    "test": "vitest run tests server/tests",
+    "test:e2e": "playwright test",
+    "server": "node server/src/index.ts",
+    "ai:up": "docker compose --profile ${LLM_PROVIDER:-ollama} up -d --build",
+    "ai:down": "docker compose --profile ollama --profile vllm down",
+    "ai:logs": "docker compose logs -f api"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
