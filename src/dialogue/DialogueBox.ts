@@ -1,5 +1,6 @@
 import type { SoundManager } from '../audio/SoundManager';
 import { Gate, h, reducedMotion, sleep } from '../util';
+import { pageIndexes } from './paginate';
 import { parseLine, plainText, type Token } from './parser';
 
 export interface DialogueSettings {
@@ -102,44 +103,76 @@ export class DialogueBox {
     this.onLine?.(entry);
     this.live.textContent = o.name ? `${o.name}: ${plain}` : plain;
 
-    this.state = 'typing';
-    this.next.classList.remove('on');
-    onTalk(true);
-
+    // 최대 줄 수를 넘으면 페이지로 나눠 출력 (DLG-03)
+    const pages = this.paginate(steps);
     const base = reducedMotion() ? 0 : this.settings().charMs;
     let factor = o.speed ?? 1;
     let n = 0;
-    for (const s of steps) {
-      if (this.aborted) break;
-      if (this.skip || base === 0) break;
-      if ('wait' in s) {
-        await this.delay(s.wait);
-        continue;
-      }
-      if ('speed' in s) {
-        factor = s.speed;
-        continue;
-      }
-      s.span.classList.add('on');
-      const ch = s.span.textContent ?? '';
-      if (ch.trim() && n++ % 2 === 0) this.sound.blip(o.voice);
-      let d = base / factor;
-      if (/[,，、]/.test(ch)) d += base * 4;
-      else if (/[.!?。…~]/.test(ch)) d += base * 7;
-      await this.delay(d);
-    }
-    this.textEl.querySelectorAll('.ch').forEach((c) => c.classList.add('on'));
-    onTalk(false);
-    if (this.aborted) {
-      this.state = 'idle';
-      return;
-    }
 
-    this.state = 'waiting';
-    this.next.classList.add('on');
-    await this.waitAdvance(plain.length);
-    this.next.classList.remove('on');
+    for (let p = 0; p < pages.length && !this.aborted; p++) {
+      this.showPage(pages, p);
+      this.skip = false;
+      this.state = 'typing';
+      this.next.classList.remove('on');
+      onTalk(true);
+
+      for (const s of pages[p]) {
+        if (this.aborted || this.skip || base === 0) break;
+        if ('wait' in s) {
+          await this.delay(s.wait);
+          continue;
+        }
+        if ('speed' in s) {
+          factor = s.speed;
+          continue;
+        }
+        s.span.classList.add('on');
+        const ch = s.span.textContent ?? '';
+        if (ch.trim() && n++ % 2 === 0) this.sound.blip(o.voice);
+        let d = base / factor;
+        if (/[,，、]/.test(ch)) d += base * 4;
+        else if (/[.!?。…~]/.test(ch)) d += base * 7;
+        await this.delay(d);
+      }
+      // 일시 속도 변경이 건너뛰어진 경우에도 다음 페이지에 반영
+      for (const s of pages[p]) if ('speed' in s) factor = s.speed;
+      for (const s of pages[p]) if ('span' in s) s.span.classList.add('on');
+      onTalk(false);
+      if (this.aborted) break;
+
+      this.state = 'waiting';
+      this.next.classList.add('on');
+      this.root.dataset.page = `${p + 1}/${pages.length}`;
+      const len = pages[p].filter((s) => 'span' in s).length;
+      await this.waitAdvance(len);
+      this.next.classList.remove('on');
+    }
     this.state = 'idle';
+  }
+
+  /** 글자 위치를 측정해 MAX_LINES 줄 단위 페이지로 나눈다. */
+  private paginate(steps: Step[]): Step[][] {
+    const spans = steps.filter((s): s is { span: HTMLElement } => 'span' in s);
+    const cs = getComputedStyle(this.textEl);
+    const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
+    const idx = pageIndexes(
+      spans.map((s) => s.span.offsetTop),
+      lh,
+    );
+    const pageOf = new Map(spans.map((s, i) => [s.span, idx[i]]));
+    const pages: Step[][] = [[]];
+    let cur = 0;
+    for (const s of steps) {
+      if ('span' in s) cur = pageOf.get(s.span) ?? cur;
+      (pages[cur] ??= []).push(s);
+    }
+    return pages.filter((p) => p.length);
+  }
+
+  private showPage(pages: Step[][], p: number) {
+    pages.forEach((page, i) => {
+      for (const s of page) if ('span' in s) s.span.classList.toggle('off-page', i !== p);
+    });
   }
 
   private build(tokens: Token[]): Step[] {

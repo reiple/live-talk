@@ -263,7 +263,7 @@
   left: 0;
   right: 0;
   bottom: 40px;
-  height: calc(270px * var(--dlg-scale));
+  height: calc(300px * var(--dlg-scale));
   background:
     repeating-linear-gradient(45deg, #ffffff07 0 2px, transparent 2px 9px),
     repeating-linear-gradient(-45deg, #ffffff07 0 2px, transparent 2px 9px),
@@ -307,8 +307,10 @@
   position: absolute;
   left: 230px;
   right: 230px;
-  top: calc(52px * var(--dlg-scale));
+  top: calc(42px * var(--dlg-scale));
   margin: 0;
+  max-height: 4.5em; /* 1.5 line-height × MAX_LINES(3) */
+  overflow: hidden;
   font-size: calc(54px * var(--dlg-scale));
   line-height: 1.5;
   font-weight: 600;
@@ -323,6 +325,9 @@
 }
 .dlg-text .ch.on {
   visibility: visible;
+}
+.dlg-text .ch.off-page {
+  display: none !important; /* .shk.on 의 inline-block 보다 우선 */
 }
 .dlg-text .ch.b {
   font-weight: 800;
