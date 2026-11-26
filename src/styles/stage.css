@@ -1,0 +1,382 @@
+/* 1920×1080 고정 좌표계. Stage.fit() 이 scale 로 맞춘다. */
+.stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+  overflow: hidden;
+  --dlg-scale: 1;
+  --dlg-alpha: 0.92;
+}
+.stage.shake {
+  animation: shake 0.45s linear;
+}
+@keyframes shake {
+  0%, 100% { translate: 0 0; }
+  15% { translate: -22px 8px; }
+  30% { translate: 18px -10px; }
+  45% { translate: -14px 6px; }
+  60% { translate: 10px -4px; }
+  80% { translate: -4px 2px; }
+}
+
+/* ---------------- 배경 ---------------- */
+.bg-layer {
+  position: absolute;
+  inset: -2%;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.bg-layer.on {
+  opacity: 1;
+}
+
+/* ---------------- 캐릭터 ---------------- */
+.char-layer {
+  position: absolute;
+  inset: 0;
+}
+.char {
+  position: absolute;
+  bottom: 140px;
+  left: 50%;
+  width: 645px;
+  height: 860px;
+  translate: -50% 0;
+  transition: left 0.5s ease, opacity 0.4s ease, filter 0.3s ease, translate 0.4s ease;
+  filter: drop-shadow(0 18px 30px #0007);
+}
+.char.entering {
+  opacity: 0;
+  translate: -50% 40px;
+}
+.char.dim {
+  filter: brightness(0.7) drop-shadow(0 18px 30px #0007);
+}
+.char.sprite img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom;
+}
+.pc {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.pc-body {
+  transform-origin: 50% 100%;
+  animation: breathe 3.6s ease-in-out infinite;
+}
+@keyframes breathe {
+  50% { transform: scale(1.012, 1.018); }
+}
+.char.talking .pc-head {
+  animation: nod 0.9s ease-in-out infinite;
+}
+@keyframes nod {
+  50% { translate: 0 3px; }
+}
+.pc-head {
+  transform-box: fill-box;
+  transform-origin: 50% 90%;
+  transition: transform 0.35s ease;
+}
+.pc .skin {
+  fill: #f7dccb;
+}
+.pc .lash {
+  fill: none;
+  stroke: #1d2238;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+.pc .eye-shape,
+.pc .eye-blink {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.18s ease;
+}
+.pc.blink .eye-blink {
+  transform: scaleY(0.08);
+  transition-duration: 0.05s;
+}
+.pc .iris {
+  transition: transform 0.3s ease;
+}
+.pc .brow {
+  fill: none;
+  stroke-width: 9;
+  stroke-linecap: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.25s ease;
+  filter: brightness(0.7);
+}
+.pc .nose {
+  fill: none;
+  stroke: #d9a993;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.pc .mouth {
+  fill: none;
+  stroke: #8a3846;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pc .mouth.open {
+  fill: #8a3846;
+  stroke-width: 3;
+}
+.pc .blush,
+.pc .sweat,
+.pc .pc-arm {
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.pc .blush {
+  fill: #ff8fa3;
+}
+.pc .sweat {
+  fill: #a8dcff;
+}
+.pc.has-blush .blush {
+  opacity: 0.55;
+}
+.pc.has-sweat .sweat {
+  opacity: 0.9;
+}
+.pc.has-arm .pc-arm {
+  opacity: 1;
+}
+
+/* ---------------- 효과 ---------------- */
+.fx-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+.fx-flash.on {
+  animation: flash 0.45s ease-out;
+}
+@keyframes flash {
+  0% { opacity: 0.95; }
+  100% { opacity: 0; }
+}
+.fx-cutin {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, #ffffff22 0 4deg, transparent 4deg 12deg);
+}
+.fx-cutin span {
+  font-size: 220px;
+  font-weight: 900;
+  color: #fff;
+  -webkit-text-stroke: 14px #d4162b;
+  paint-order: stroke fill;
+  text-shadow: 0 12px 0 #5a0710;
+  rotate: -7deg;
+  letter-spacing: 0.02em;
+}
+.fx-cutin.on {
+  animation: cutin 1.3s ease-out;
+}
+.fx-cutin.on span {
+  animation: cutin-text 1.3s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+@keyframes cutin {
+  0%, 85% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes cutin-text {
+  0% { scale: 2.6; opacity: 0; }
+  18% { scale: 1; opacity: 1; }
+  100% { scale: 1.05; }
+}
+
+/* ---------------- 후원 알림 ---------------- */
+.alert-layer {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  translate: -50% 0;
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+}
+.alert-card {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 560px;
+  max-width: 1100px;
+  padding: 22px 48px 26px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #2b2410f2, #1a1608f2);
+  border: 3px solid #ffd75a;
+  box-shadow: 0 0 60px #ffd75a55;
+  color: #fff;
+  text-align: center;
+  animation: alert-in 0.5s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.alert-card.out {
+  animation: alert-out 0.5s ease-in forwards;
+}
+.alert-icon {
+  font-size: 64px;
+  color: #ffd75a;
+  line-height: 1;
+}
+.alert-head {
+  font-size: 40px;
+  font-weight: 700;
+}
+.alert-head b,
+.alert-head em {
+  color: #ffd75a;
+  font-style: normal;
+}
+.alert-msg {
+  font-size: 34px;
+  color: #f1ead2;
+}
+@keyframes alert-in {
+  from { scale: 0.6; opacity: 0; }
+}
+@keyframes alert-out {
+  to { translate: 0 -40px; opacity: 0; }
+}
+
+/* ---------------- 대사창 ---------------- */
+.dialogue {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  height: calc(270px * var(--dlg-scale));
+  background:
+    repeating-linear-gradient(45deg, #ffffff07 0 2px, transparent 2px 9px),
+    repeating-linear-gradient(-45deg, #ffffff07 0 2px, transparent 2px 9px),
+    linear-gradient(180deg, rgb(16 26 64 / var(--dlg-alpha)), rgb(8 14 42 / var(--dlg-alpha)));
+  border-top: 5px solid #dfe8ff;
+  border-bottom: 5px solid #dfe8ff;
+  box-shadow:
+    inset 0 6px 0 #2a3a78,
+    inset 0 -6px 0 #2a3a78,
+    0 0 0 3px #0b1230;
+  transition: opacity 0.3s ease, translate 0.3s ease;
+}
+.dialogue.empty {
+  opacity: 0;
+  translate: 0 30px;
+}
+.stage.no-subs .dialogue {
+  display: none;
+}
+.nameplate {
+  --name-color: #3a86d8;
+  position: absolute;
+  top: -40px;
+  left: 150px;
+  padding: 4px;
+  background: #e7eeff;
+  clip-path: polygon(26px 0, calc(100% - 26px) 0, 100% 50%, calc(100% - 26px) 100%, 26px 100%, 0 50%);
+}
+.nameplate span {
+  display: block;
+  padding: 6px 64px 8px;
+  font-size: calc(36px * var(--dlg-scale));
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--name-color) 80%, #fff), var(--name-color) 55%, color-mix(in srgb, var(--name-color) 65%, #000));
+  clip-path: polygon(24px 0, calc(100% - 24px) 0, 100% 50%, calc(100% - 24px) 100%, 24px 100%, 0 50%);
+  text-shadow: 0 2px 0 #0004;
+}
+.dlg-text {
+  position: absolute;
+  left: 230px;
+  right: 230px;
+  top: calc(52px * var(--dlg-scale));
+  margin: 0;
+  font-size: calc(54px * var(--dlg-scale));
+  line-height: 1.5;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.03em;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  text-shadow: 0 3px 0 #0006;
+}
+.dlg-text .ch {
+  visibility: hidden;
+}
+.dlg-text .ch.on {
+  visibility: visible;
+}
+.dlg-text .ch.b {
+  font-weight: 800;
+}
+.dlg-text .ch.shk.on {
+  display: inline-block;
+  animation: jitter 0.12s steps(2) infinite;
+}
+@keyframes jitter {
+  0% { translate: -2px 1px; }
+  100% { translate: 2px -1px; }
+}
+.dlg-next {
+  position: absolute;
+  right: 90px;
+  bottom: calc(60px * var(--dlg-scale));
+  font-size: calc(96px * var(--dlg-scale));
+  line-height: 1;
+  font-weight: 900;
+  color: #f8c813;
+  text-shadow: 0 0 0 #000, 3px 3px 0 #6b4c00;
+  opacity: 0;
+}
+.dlg-next.on {
+  opacity: 1;
+  animation: nudge 0.8s ease-in-out infinite;
+}
+@keyframes nudge {
+  50% { translate: 14px 0; }
+}
+
+/* ---------------- 대기/종료 화면 ---------------- */
+.screen-msg {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 64px;
+  font-weight: 700;
+  color: #fff;
+  background: #05060acc;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s;
+}
+.screen-msg.on {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-body,
+  .char.talking .pc-head,
+  .dlg-next.on,
+  .dlg-text .ch.shk.on {
+    animation: none;
+  }
+}

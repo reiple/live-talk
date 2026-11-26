@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "title": "【첫 방송】 사라진 딸기 케이크의 범인을 찾아라! 🍰",
+    "channel": "하루",
+    "category": "저스트 채팅",
+    "tags": ["버튜버", "토크", "추리", "한국어"],
+    "loop": false
+  },
+  "characters": {
+    "host": {
+      "name": "하루",
+      "nameColor": "#2fae8e",
+      "voice": "blip_high",
+      "palette": { "hair": "#45d6b5", "eyes": "#2e7fb8", "outfit": "#2c3566", "accent": "#ff7ab8" }
+    }
+  },
+  "triggers": [
+    { "keyword": "안녕", "call": "greet", "cooldownMs": 8000 },
+    { "keyword": "노래", "call": "song", "cooldownMs": 12000 },
+    { "keyword": "케이크", "call": "cake", "cooldownMs": 12000 }
+  ],
+  "script": [
+    { "cmd": "bg", "src": "studio", "transition": "cut" },
+    { "cmd": "wait", "ms": 600 },
+    { "cmd": "show", "who": "host", "pos": "center", "expr": "smile" },
+    { "cmd": "sfx", "src": "pop" },
+    { "cmd": "wait", "ms": 500 },
+    { "cmd": "say", "who": "host", "expr": "smile", "text": "다들 안녕~! {wait:200}라이브 토크에 온 걸 환영해!", "reactions": ["ㅎㅇㅎㅇ", "하루 안녕!", "왔다!!", "출석!"] },
+    { "cmd": "say", "who": "host", "expr": "normal", "text": "오늘은 처음 온 사람도 많네. 채팅창에 {green}'안녕'{/green}이라고 쳐 주면 인사해 줄게!" },
+    { "cmd": "say", "who": "host", "expr": "thinking", "text": "음… {wait:300}오늘은 뭘 해 볼까? 어제 못 끝낸 추리 이야기라도 할까?", "reactions": ["추리 ㄱㄱ", "ㄱㄱㄱ", "그거 궁금했음"] },
+    { "cmd": "say", "who": "host", "expr": "normal", "text": "좋아, 그럼 시작할게. 어제 내 책상 위에 있던 {yellow}딸기 케이크{/yellow}가 감쪽같이 사라졌거든." },
+    { "cmd": "chat", "user": "방구석탐정", "text": "범인은 고양이다" },
+    { "cmd": "say", "who": "host", "expr": "smile", "text": "고양이? {wait:200}우리 집엔 고양이 없어~" },
+    { "cmd": "say", "who": "host", "expr": "sad", "text": "아끼고 아껴 둔 건데… {speed:0.5}딱 한 입도 못 먹었어…", "reactions": ["ㅠㅠㅠ", "헉 불쌍해", "범인 누구야"] },
+    { "cmd": "say", "who": "host", "expr": "thinking", "text": "그런데 오늘 아침에 매니저가 갑자기 이러는 거야. {wait:300}\"크림이 좀 달더라.\"" },
+    { "cmd": "wait", "ms": 300 },
+    { "cmd": "sfx", "src": "flash" },
+    { "cmd": "effect", "type": "flash" },
+    { "cmd": "effect", "type": "cutin", "text": "잠깐!" },
+    { "cmd": "wait", "ms": 1300 },
+    { "cmd": "expr", "who": "host", "expr": "point" },
+    { "cmd": "sfx", "src": "hit" },
+    { "cmd": "effect", "type": "shake" },
+    { "cmd": "say", "who": "host", "expr": "point", "text": "어째서 {red}{shake}그 맛{/shake}{/red}을 알고 있는 거죠?", "reactions": ["ㄷㄷㄷ", "범인 찾았다", "매니저 ㅋㅋㅋㅋ", "검거 완료", "ㅋㅋㅋㅋㅋㅋ"] },
+    { "cmd": "chat", "user": "매니저", "text": "...저 잠깐 화장실 좀" },
+    { "cmd": "say", "who": "host", "expr": "surprised", "text": "…{wait:300}잠깐, 매니저가 도망가려는 것 같은데?!" },
+    { "cmd": "wait", "ms": 800 },
+    { "cmd": "chat", "user": "케이크요정", "text": "케이크 새로 사세요 ㅋㅋ", "donation": 5000 },
+    { "cmd": "wait", "ms": 1200 },
+    { "cmd": "say", "who": "host", "expr": "smile", "text": "{b}케이크요정{/b}님, 5,000코인 후원 고마워! 덕분에 케이크 다시 살 수 있겠다!", "reactions": ["요정님 ㄳ", "👏👏👏", "케이크 사러 가자"] },
+    { "cmd": "say", "who": "host", "expr": "normal", "text": "사건은 무사히 해결! 매니저한테는 나중에 {yellow}두 배로{/yellow} 사 오라고 할게." },
+    { "cmd": "say", "who": "host", "expr": "smile", "text": "오늘 방송은 여기까지! 다음 방송에도 꼭 와 줘야 해~ 안녕!", "reactions": ["수고했어요!", "ㅂㅂ", "다음 방송 기대", "재밌었다"] },
+    { "cmd": "wait", "ms": 1500 },
+    { "cmd": "hide", "who": "host" },
+    { "cmd": "wait", "ms": 800 },
+    { "cmd": "end" },
+
+    { "cmd": "label", "name": "greet" },
+    { "cmd": "say", "who": "host", "expr": "smile", "text": "{b}$user{/b}님 안녕! 와 줘서 고마워~" },
+    { "cmd": "return" },
+
+    { "cmd": "label", "name": "song" },
+    { "cmd": "say", "who": "host", "expr": "thinking", "text": "노래? 음… 그건 다음 방송에서 {green}제대로{/green} 준비해 올게! ♪" },
+    { "cmd": "return" },
+
+    { "cmd": "label", "name": "cake" },
+    { "cmd": "say", "who": "host", "expr": "sad", "text": "케이크 얘기는… 아직 마음이 좀 아파…" },
+    { "cmd": "return" }
+  ]
+}

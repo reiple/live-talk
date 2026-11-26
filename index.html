@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Live Talk</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+    />
+  </head>
+  <body>
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z" /></symbol>
+      <symbol id="i-next" viewBox="0 0 24 24"><path d="M5 5v14l10-7zM16 5h3v14h-3z" /></symbol>
+      <symbol id="i-vol" viewBox="0 0 24 24"><path d="M3 9v6h4l5 4V5L7 9z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></symbol>
+      <symbol id="i-mute" viewBox="0 0 24 24"><path d="M3 9v6h4l5 4V5L7 9z" /><path d="M16 9l6 6m0-6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-dasharray="3.1 2.8" /><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2" /></symbol>
+      <symbol id="i-cc" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="2" /><path d="M6 11h5M13 11h5M6 15h8M16 15h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></symbol>
+      <symbol id="i-log" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></symbol>
+      <symbol id="i-wide" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2" /></symbol>
+      <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" /></symbol>
+    </svg>
+
+    <div id="app">
+      <header class="gnb">
+        <button class="icon-btn menu-btn" id="menu-btn" aria-label="메뉴">☰</button>
+        <a class="logo" href="./"><span class="logo-mark">▶</span>LIVE<b>TALK</b></a>
+        <div class="search">
+          <input type="search" placeholder="채널, 방송, 카테고리 검색" aria-label="검색" />
+        </div>
+        <div class="gnb-right">
+          <button class="icon-btn" id="admin-btn" title="운영 패널 (`)">운영</button>
+          <span class="avatar me" aria-label="내 프로필">나</span>
+        </div>
+      </header>
+
+      <nav class="sidebar" id="sidebar" aria-label="채널 목록">
+        <h3>팔로잉 채널</h3>
+        <ul id="follow-list"></ul>
+        <h3>추천 채널</h3>
+        <ul id="rec-list"></ul>
+      </nav>
+
+      <main class="main">
+        <section class="player" id="player">
+          <div class="stage-wrap" id="stage-wrap">
+            <div class="stage" id="stage">
+              <div class="bg-layer" id="bg-a"></div>
+              <div class="bg-layer" id="bg-b"></div>
+              <div class="char-layer" id="char-layer"></div>
+              <div class="fx-flash" id="fx-flash"></div>
+              <div class="fx-cutin" id="fx-cutin"><span></span></div>
+              <div class="alert-layer" id="alert-layer"></div>
+              <div class="dialogue empty" id="dialogue">
+                <div class="nameplate" hidden><span></span></div>
+                <p class="dlg-text"></p>
+                <span class="dlg-next" aria-hidden="true">»</span>
+              </div>
+              <div class="screen-msg" id="screen-msg"></div>
+            </div>
+          </div>
+
+          <div class="hud-top">
+            <span class="live-badge">LIVE</span>
+            <span class="hud-viewers"><b id="hud-viewers">0</b>명 시청</span>
+          </div>
+
+          <div class="controls" id="controls">
+            <button class="ctl" id="btn-play" aria-label="일시정지"><svg><use href="#i-pause" /></svg></button>
+            <button class="ctl" id="btn-next" aria-label="다음 대사"><svg><use href="#i-next" /></svg></button>
+            <div class="vol">
+              <button class="ctl" id="btn-mute" aria-label="음소거"><svg><use href="#i-vol" /></svg></button>
+              <input type="range" id="vol" min="0" max="1" step="0.05" aria-label="볼륨" />
+            </div>
+            <span class="ctl-live"><i></i>LIVE <span id="ctl-elapsed">00:00:00</span></span>
+            <span class="spacer"></span>
+            <button class="ctl" id="btn-log" aria-label="대사 로그"><svg><use href="#i-log" /></svg></button>
+            <button class="ctl" id="btn-cc" aria-label="자막 켜기/끄기" aria-pressed="true"><svg><use href="#i-cc" /></svg></button>
+            <button class="ctl" id="btn-settings" aria-label="설정" aria-expanded="false"><svg><use href="#i-gear" /></svg></button>
+            <button class="ctl hide-m" id="btn-wide" aria-label="넓은 화면"><svg><use href="#i-wide" /></svg></button>
+            <button class="ctl" id="btn-full" aria-label="전체화면"><svg><use href="#i-full" /></svg></button>
+          </div>
+
+          <div class="pop settings-pop" id="settings-pop" hidden>
+            <label>대사 속도
+              <select id="set-speed">
+                <option value="70">느림</option>
+                <option value="40">보통</option>
+                <option value="20">빠름</option>
+                <option value="0">즉시</option>
+              </select>
+            </label>
+            <label class="row">자동 진행 <input type="checkbox" id="set-auto" /></label>
+            <label>자동 진행 대기 <output id="set-delay-out"></output>
+              <input type="range" id="set-delay" min="400" max="4000" step="100" />
+            </label>
+            <label>자막 크기
+              <select id="set-size">
+                <option value="0.85">작게</option>
+                <option value="1">보통</option>
+                <option value="1.15">크게</option>
+              </select>
+            </label>
+            <label>자막 배경 불투명도
+              <input type="range" id="set-alpha" min="0.3" max="1" step="0.05" />
+            </label>
+          </div>
+
+          <div class="pop backlog" id="backlog" hidden>
+            <div class="pop-head"><b>대사 로그</b><button class="icon-btn" id="backlog-close" aria-label="닫기">✕</button></div>
+            <ol id="backlog-list"></ol>
+          </div>
+
+          <button class="start-overlay" id="start-overlay">
+            <span class="play-big"><svg><use href="#i-play" /></svg></span>
+            <span>클릭하여 시청 시작</span>
+          </button>
+          <div class="sr-only" aria-live="polite" id="dlg-live"></div>
+        </section>
+
+        <section class="info" id="info">
+          <h1 class="title" id="stream-title"></h1>
+          <div class="channel">
+            <span class="avatar ch-avatar" id="ch-avatar"></span>
+            <div class="ch-meta">
+              <div class="ch-name"><b id="ch-name"></b><span class="verified" title="인증된 채널">✓</span></div>
+              <div class="ch-sub">
+                <span class="cat" id="ch-cat"></span>
+                <span id="ch-viewers"></span>
+                <span id="ch-elapsed"></span>
+              </div>
+              <div class="tags" id="ch-tags"></div>
+            </div>
+            <div class="ch-actions">
+              <button class="btn follow" id="btn-follow" aria-pressed="false">＋ 팔로우</button>
+              <button class="btn ghost hide-m" id="btn-sub">구독</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="chat" id="chat" aria-label="채팅">
+        <div class="chat-head">
+          <b>채팅</b>
+          <button class="icon-btn" id="chat-close" aria-label="채팅 접기">→</button>
+        </div>
+        <div class="chat-notice">📌 채팅에 <b>안녕</b>, <b>노래</b>, <b>케이크</b>를 입력하면 하루가 반응해요.</div>
+        <div class="chat-list" id="chat-list" role="log"></div>
+        <button class="chat-jump" id="chat-jump" hidden>최신 채팅 보기 ↓</button>
+        <form class="chat-form" id="chat-form">
+          <input id="chat-input" autocomplete="off" placeholder="채팅을 입력해 주세요" aria-label="채팅 입력" />
+          <button class="btn" type="submit">전송</button>
+        </form>
+      </aside>
+      <button class="chat-open" id="chat-open" aria-label="채팅 펼치기" hidden><svg><use href="#i-chat" /></svg></button>
+    </div>
+
+    <div class="admin" id="admin" hidden>
+      <div class="pop-head"><b>운영 패널</b><button class="icon-btn" id="admin-close" aria-label="닫기">✕</button></div>
+      <div class="admin-row">
+        <button class="btn" id="adm-play">일시정지</button>
+        <button class="btn" id="adm-next">다음 대사</button>
+        <button class="btn" id="adm-restart">처음부터</button>
+      </div>
+      <div class="admin-sec">표정</div>
+      <div class="admin-row wrap" id="adm-exprs"></div>
+      <div class="admin-sec">효과</div>
+      <div class="admin-row wrap">
+        <button class="btn ghost" data-fx="shake">흔들림</button>
+        <button class="btn ghost" data-fx="flash">플래시</button>
+        <button class="btn ghost" data-fx="cutin">컷인</button>
+        <button class="btn ghost" id="adm-donate">후원 테스트</button>
+      </div>
+      <div class="admin-sec">즉석 대사 <small>(다음 대사 앞에 끼워넣기)</small></div>
+      <form id="adm-say" class="admin-say">
+        <textarea id="adm-text" rows="3" placeholder="예) {red}잠깐!{/red} 방금 채팅 봤어?"></textarea>
+        <div class="admin-row">
+          <select id="adm-expr" aria-label="표정"></select>
+          <button class="btn" type="submit">말하기</button>
+        </div>
+      </form>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
