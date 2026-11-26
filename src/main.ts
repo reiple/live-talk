@@ -5,13 +5,15 @@ import './styles/chat.css';
 
 import { SoundManager } from './audio/SoundManager';
 import { BotChat } from './chat/BotChat';
-import { ChatPanel } from './chat/ChatPanel';
+import { isBridgeMessage, openBridge, type BridgeMessage } from './chat/ChatBridge';
+import { CHAT_DEFAULTS, ChatPanel, type ChatSettings } from './chat/ChatPanel';
 import { DialogueBox, type DialogueSettings } from './dialogue/DialogueBox';
 import { ScriptRunner } from './script/ScriptRunner';
 import type { ScriptFile, Trigger } from './script/types';
 import { CharacterLayer, EXPRESSION_NAMES } from './stage/characters';
 import { Stage } from './stage/Stage';
 import { AiClient } from './ai/AiClient';
+import { parseMetaInput } from './meta';
 import { FreeTalk } from './ai/FreeTalk';
 import { ME, parseVoteText, percent, VotePanel } from './vote/VotePanel';
 import { $, Gate, fmtNum, fmtTime, h, nameColor, rand, randInt, reducedMotion, store } from './util';
@@ -43,6 +45,8 @@ const saveSettings = () => store.set('lt.settings', settings);
 
 /* ---------------- 부트스트랩 ---------------- */
 async function boot() {
+  if (params.get('view') === 'chat') return bootChatPopout();
+
   const file: ScriptFile = await fetch(SCRIPT_URL).then((r) => {
     if (!r.ok) throw new Error(`스크립트를 불러오지 못했습니다: ${SCRIPT_URL}`);
     return r.json();
@@ -119,6 +123,7 @@ async function boot() {
       if (!chars.has(aiHostId)) chars.show(aiHostId, 'center');
       chars.setExpr(aiHostId, expr);
     },
+    thinking: () => dialogue.showThinking(file.characters[aiHostId]?.name, file.characters[aiHostId]?.nameColor),
     quote: (c) => {
       quoteEl.classList.toggle('on', !!c);
       if (c) {
@@ -169,6 +174,7 @@ async function boot() {
     },
   });
 
+  setupChatBridge(chat);
   chat.setNotice(file.meta.notice);
   chat.onSend((text) => {
     chat.add({ user: '시청자(나)', text, badges: ['me'] });
@@ -444,12 +450,123 @@ function setupPlayer(x: {
 
   // 레이아웃 토글
   $('#menu-btn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
-  $('#chat-close').addEventListener('click', () => setChat(false));
-  $('#chat-open').addEventListener('click', () => setChat(true));
-  const setChat = (on: boolean) => {
-    document.body.classList.toggle('chat-off', !on);
-    $('#chat-open').hidden = on;
+  $('#chat-close').addEventListener('click', () => setChatVisible(false));
+  $('#chat-open').addEventListener('click', () => setChatVisible(true));
+}
+
+function setChatVisible(on: boolean) {
+  document.body.classList.toggle('chat-off', !on);
+  $('#chat-open').hidden = on;
+}
+
+/* ================================================================== */
+/* 채팅 설정 (CHT-08)                                                   */
+/* ================================================================== */
+const CHAT_KEY = 'lt.chat';
+
+function setupChatSettings(chat: ChatPanel, onPopout?: () => void) {
+  let s: ChatSettings = store.get(CHAT_KEY, CHAT_DEFAULTS);
+  const btn = $('#chat-settings-btn');
+  const pop = $('#chat-settings');
+  const fontBtns = Array.from(pop.querySelectorAll<HTMLButtonElement>('[data-font]'));
+  const time = $<HTMLInputElement>('#chat-time');
+  const apply = () => {
+    chat.applySettings(s);
+    fontBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.font === s.fontSize)));
+    time.checked = s.showTime;
   };
+  const save = () => {
+    store.set(CHAT_KEY, s);
+    apply();
+  };
+  apply();
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    pop.hidden = !pop.hidden;
+    btn.setAttribute('aria-expanded', String(!pop.hidden));
+  });
+  document.addEventListener('click', (e) => {
+    if (!(e.target as Element).closest('#chat-settings, #chat-settings-btn')) {
+      pop.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+  fontBtns.forEach((b) =>
+    b.addEventListener('click', () => {
+      s = { ...s, fontSize: b.dataset.font as ChatSettings['fontSize'] };
+      save();
+    }),
+  );
+  time.addEventListener('change', () => {
+    s = { ...s, showTime: time.checked };
+    save();
+  });
+  // 다른 창(방송 창 ↔ 새 창 채팅)에서 바꾼 설정도 반영
+  window.addEventListener('storage', (e) => {
+    if (e.key !== CHAT_KEY) return;
+    s = store.get(CHAT_KEY, CHAT_DEFAULTS);
+    apply();
+  });
+
+  const popBtn = $('#chat-popout');
+  if (onPopout) {
+    popBtn.addEventListener('click', () => {
+      pop.hidden = true;
+      onPopout();
+    });
+  } else popBtn.hidden = true;
+}
+
+/** 방송 창: 새 창 채팅과 메시지를 주고받는다 */
+function setupChatBridge(chat: ChatPanel) {
+  const bridge = openBridge();
+  const openPopout = () => {
+    const url = `${location.pathname}?view=chat&script=${encodeURIComponent(SCRIPT_NAME)}`;
+    const w = window.open(url, 'live-talk-chat', 'popup,width=400,height=760');
+    if (!w) chat.add({ user: '', system: true, text: '팝업이 차단되어 새 창을 열 수 없습니다.' });
+  };
+  setupChatSettings(chat, bridge ? openPopout : undefined);
+  if (!bridge) return;
+  chat.onAdd = (m) => bridge.postMessage({ type: 'msg', m } satisfies BridgeMessage);
+  chat.onNotice = (text) => bridge.postMessage({ type: 'notice', text } satisfies BridgeMessage);
+  bridge.onmessage = (e: MessageEvent) => {
+    const d = e.data;
+    if (!isBridgeMessage(d)) return;
+    if (d.type === 'hello') {
+      bridge.postMessage({ type: 'snapshot', log: chat.log, notice: chat.noticeSource } satisfies BridgeMessage);
+      setChatVisible(false); // 새 창에서 보는 동안 방송 창의 채팅은 접는다
+    } else if (d.type === 'send') chat.submit(d.text);
+    else if (d.type === 'bye') setChatVisible(true);
+  };
+  window.addEventListener('pagehide', () => bridge.postMessage({ type: 'main-bye' } satisfies BridgeMessage));
+}
+
+/** ?view=chat : 채팅만 보여 주는 새 창 */
+function bootChatPopout() {
+  document.body.classList.add('popout');
+  document.title = '채팅 | Live Talk';
+  const chat = new ChatPanel($('#chat'));
+  setupChatSettings(chat);
+  const bridge = openBridge();
+  if (!bridge) {
+    chat.add({ user: '', system: true, text: '이 브라우저는 새 창 채팅을 지원하지 않습니다.' });
+    return;
+  }
+  chat.onSend((text) => bridge.postMessage({ type: 'send', text } satisfies BridgeMessage));
+  bridge.onmessage = (e: MessageEvent) => {
+    const d = e.data;
+    if (!isBridgeMessage(d)) return;
+    if (d.type === 'snapshot') {
+      chat.reset();
+      d.log.forEach((m) => chat.add(m));
+      chat.setNotice(d.notice);
+    } else if (d.type === 'msg') chat.add(d.m);
+    else if (d.type === 'notice') chat.setNotice(d.text);
+    else if (d.type === 'main-bye') chat.add({ user: '', system: true, text: '방송 창이 닫혔습니다.' });
+  };
+  bridge.postMessage({ type: 'hello' } satisfies BridgeMessage);
+  window.addEventListener('pagehide', () => bridge.postMessage({ type: 'bye' } satisfies BridgeMessage));
 }
 
 /* ================================================================== */
@@ -513,6 +630,31 @@ function setupAdmin(x: {
   $('#adm-sub').addEventListener('click', () => x.follow('테스트구독자', 'subscribe'));
   $('#adm-vote-close').addEventListener('click', () => x.vote.close());
 
+  // 방송 정보 편집 (ADM-04)
+  const metaForm = $<HTMLFormElement>('#adm-meta');
+  const titleIn = $<HTMLInputElement>('#adm-meta-title');
+  const catIn = $<HTMLInputElement>('#adm-meta-cat');
+  const tagsIn = $<HTMLInputElement>('#adm-meta-tags');
+  const fillMeta = () => {
+    titleIn.value = x.file.meta.title;
+    catIn.value = x.file.meta.category ?? '';
+    tagsIn.value = (x.file.meta.tags ?? []).join(', ');
+  };
+  fillMeta();
+  metaForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const next = parseMetaInput(titleIn.value, catIn.value, tagsIn.value);
+    if (!next) {
+      titleIn.focus();
+      return;
+    }
+    const changed = next.title !== x.file.meta.title;
+    Object.assign(x.file.meta, next); // 배너, 스크립트 banner 명령도 새 값을 쓴다
+    renderMeta(x.file.meta);
+    fillMeta();
+    if (changed) x.chat.add({ user: '', system: true, text: `방송 제목이 변경되었습니다: ${next.title}` });
+  });
+
   // AI 자유 대화
   const aiStatus = $('#adm-ai-status');
   const refreshAi = async () => {
@@ -558,17 +700,59 @@ function setupAdmin(x: {
 /* ================================================================== */
 /* 방송 정보 / 사이드바 (더미 데이터)                                    */
 /* ================================================================== */
-function renderInfo(file: ScriptFile, color: string, onAction: (kind: 'follow' | 'subscribe') => void) {
-  const m = file.meta;
+/** 방송 제목/카테고리/태그 표시 (운영 패널에서 바꾸면 다시 호출) */
+function renderMeta(m: ScriptFile['meta']) {
   document.title = `${m.channel} - ${m.title} | Live Talk`;
   $('#stream-title').textContent = m.title;
+  $('#ch-cat').textContent = m.category ?? '';
+  const tags = $('#ch-tags');
+  tags.textContent = '';
+  for (const t of m.tags ?? []) tags.append(h('span', 'tag', t));
+}
+
+/** 채널 소개 (INF-05): 접힌 상태에서는 소개 두 줄만, 펼치면 일정과 링크까지 */
+function renderAbout(about: ScriptFile['meta']['about']) {
+  const root = $('#about');
+  if (!about?.intro) return;
+  root.hidden = false;
+  $('.about-intro', root).textContent = about.intro;
+  const schedule = $('.about-schedule', root);
+  const list = $('ul', schedule);
+  for (const s of about.schedule ?? []) list.append(h('li', '', s));
+  schedule.hidden = !about.schedule?.length;
+  const links = $('.about-links', root);
+  for (const l of about.links ?? []) {
+    // http(s) 링크만 허용
+    let url: URL;
+    try {
+      url = new URL(l.url);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') continue;
+    const a = h('a', 'about-link', l.label);
+    a.href = url.href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    links.append(a);
+  }
+  links.hidden = !links.childElementCount;
+  const toggle = $<HTMLButtonElement>('.about-toggle', root);
+  toggle.addEventListener('click', () => {
+    const open = root.classList.toggle('open');
+    toggle.textContent = open ? '접기' : '더보기';
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+}
+
+function renderInfo(file: ScriptFile, color: string, onAction: (kind: 'follow' | 'subscribe') => void) {
+  const m = file.meta;
+  renderMeta(m);
+  renderAbout(m.about);
   $('#ch-name').textContent = m.channel;
   const av = $('#ch-avatar');
   av.textContent = m.channel.slice(0, 1);
   av.style.background = color;
-  $('#ch-cat').textContent = m.category ?? '';
-  const tags = $('#ch-tags');
-  for (const t of m.tags ?? []) tags.append(h('span', 'tag', t));
 
   // 팔로우 / 구독 (데모: 결제 없이 상태만 저장). 켜는 순간 방송 화면에 알림이 뜬다.
   const toggleBtn = (id: string, key: string, kind: 'follow' | 'subscribe', labels: [off: string, on: string]) => {

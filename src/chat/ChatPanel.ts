@@ -5,6 +5,8 @@ import { EMOTE_NAMES, emoteUrl, renderSegments, splitEmotes } from './emotes';
 export interface ChatMessage {
   user: string;
   text: string;
+  /** 받은 시각 (ms). 없으면 add() 시점 */
+  ts?: number;
   badges?: ('streamer' | 'manager' | 'sub' | 'me')[];
   donation?: number;
   system?: boolean;
@@ -20,6 +22,18 @@ export function filterText(text: string) {
   return t;
 }
 
+export interface ChatSettings {
+  fontSize: 'sm' | 'md' | 'lg';
+  showTime: boolean;
+}
+export const CHAT_DEFAULTS: ChatSettings = { fontSize: 'md', showTime: false };
+
+/** 채팅 시각 표시 (HH:MM) */
+export function fmtClock(ts: number) {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 const BADGE_LABEL: Record<string, string> = { streamer: '방장', manager: '매니저', sub: '구독', me: '나' };
 
 export class ChatPanel {
@@ -31,8 +45,15 @@ export class ChatPanel {
   private picker: HTMLElement;
   private stick = true;
   private sendHandlers: ((text: string) => void)[] = [];
+  private root: HTMLElement;
+  /** 최근 메시지 (새 창 채팅에 처음 보내 줄 목록) */
+  readonly log: ChatMessage[] = [];
+  noticeSource?: string;
+  onAdd?: (m: ChatMessage) => void;
+  onNotice?: (text?: string) => void;
 
   constructor(root: HTMLElement) {
+    this.root = root;
     this.list = $('#chat-list', root);
     this.jump = $<HTMLButtonElement>('#chat-jump', root);
     this.input = $<HTMLInputElement>('#chat-input', root);
@@ -58,7 +79,7 @@ export class ChatPanel {
       if (!text) return;
       this.input.value = '';
       this.picker.hidden = true;
-      this.sendHandlers.forEach((f) => f(text));
+      this.submit(text);
     });
 
     $('.notice-close', this.notice).addEventListener('click', () => (this.notice.hidden = true));
@@ -108,8 +129,28 @@ export class ChatPanel {
     this.sendHandlers.push(f);
   }
 
+  /** 입력창 전송과 같은 처리 (새 창 채팅에서 보낸 메시지 등) */
+  submit(text: string) {
+    const t = text.trim().slice(0, MAX_LEN);
+    if (t) this.sendHandlers.forEach((f) => f(t));
+  }
+
+  /** 목록 비우기 (새 창 채팅이 처음 받은 목록으로 다시 그릴 때) */
+  reset() {
+    this.list.textContent = '';
+    this.log.length = 0;
+    this.stick = true;
+  }
+
+  applySettings(s: ChatSettings) {
+    this.root.dataset.font = s.fontSize;
+    this.root.classList.toggle('show-time', s.showTime);
+  }
+
   /** 고정 공지 (CHT-07). 대사 태그({green} 등)로 색상 강조 가능. 비우면 공지를 내린다. */
   setNotice(text?: string) {
+    this.noticeSource = text;
+    this.onNotice?.(text);
     this.noticeText.textContent = '';
     if (!text?.trim()) {
       this.notice.hidden = true;
@@ -133,19 +174,25 @@ export class ChatPanel {
     this.notice.hidden = false;
   }
 
-  add(m: ChatMessage) {
+  add(input: ChatMessage) {
+    const m = { ...input, ts: input.ts ?? Date.now() };
+    this.log.push(m);
+    if (this.log.length > MAX_MESSAGES) this.log.shift();
+    this.onAdd?.(m);
     const row = h('div', 'msg');
+    const time = h('span', 'msg-time', fmtClock(m.ts));
     if (m.system) {
       row.classList.add('sys');
-      row.textContent = m.text;
+      row.append(time, document.createTextNode(m.text));
     } else if (m.donation) {
       row.classList.add('donation');
       const head = h('div', 'don-head');
-      head.append(h('span', 'nick', m.user), h('span', 'don-amt', `${fmtNum(m.donation)}코인`));
+      head.append(time, h('span', 'nick', m.user), h('span', 'don-amt', `${fmtNum(m.donation)}코인`));
       const body = h('div', 'don-text');
       renderSegments(body, splitEmotes(filterText(m.text)));
       row.append(head, body);
     } else {
+      row.append(time);
       for (const b of m.badges ?? []) row.append(h('span', `badge badge-${b}`, BADGE_LABEL[b]));
       const nick = h('span', 'nick', m.user);
       nick.style.color = m.badges?.includes('me') ? 'var(--accent)' : nameColor(m.user);

@@ -48,6 +48,23 @@ export async function complete(cfg: LlmConfig, messages: ChatMessage[], signal?:
   return content;
 }
 
+/** 모델을 GPU 에 올리기 위한 아주 작은 요청 (첫 로딩은 오래 걸리므로 시간 제한을 넉넉히) */
+export async function loadModel(cfg: LlmConfig, timeoutMs = 300_000): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: headers(cfg),
+      signal: AbortSignal.timeout(timeoutMs),
+      body: JSON.stringify({ model: cfg.model, messages: [{ role: 'user', content: '안녕' }], max_tokens: 1, ...cfg.extraBody }),
+    });
+  } catch (e) {
+    throw new LlmError(`모델 불러오기 실패: ${(e as Error).message}`, 503);
+  }
+  if (!res.ok) throw new LlmError(`모델 불러오기 실패: HTTP ${res.status}`, 502);
+  await res.body?.cancel();
+}
+
 /** /models 로 서버 연결과 모델 준비 여부 확인 (Ollama, vLLM 공통) */
 export async function health(cfg: LlmConfig): Promise<{ reachable: boolean; modelReady: boolean; error?: string }> {
   try {

@@ -62,6 +62,12 @@ export interface StreamMeta {
   loop?: boolean;
   /** 채팅 고정 공지 초기값 (대사 태그 사용 가능) */
   notice?: string;
+  /** 채널 소개 (INF-05) */
+  about?: {
+    intro: string;
+    schedule?: string[];
+    links?: { label: string; url: string }[];
+  };
 }
 
 /** AI 자유 대화 설정. persona/examples 는 서버가 이 파일에서 직접 읽는다. */

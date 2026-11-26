@@ -682,3 +682,136 @@ test('자유 대화: 운영 패널에서 시작할 수 있다', async ({ page })
   await page.locator('#chat-input').press('Enter');
   await expect(text(page)).toHaveText('대답: 운영 패널로 시작했어?', { timeout: 10_000 });
 });
+
+/* ------------------------------------------------------------------ */
+/* 정리 묶음: AI 대기 화면, 채팅 설정(CHT-08), 채널 소개(INF-05), 방송 정보 편집(ADM-04) */
+/* ------------------------------------------------------------------ */
+
+test('자유 대화: 대답을 기다리는 동안 대사창에 생각 중 표시', async ({ page }) => {
+  await mockAi(page, { delay: 2500 });
+  await start(page, freetalkScript(), AUTO);
+  await page.locator('#chat-input').fill('기다리는 중 확인?');
+  await page.locator('#chat-input').press('Enter');
+  await expect(page.locator('#chat-quote')).toContainText('기다리는 중 확인?', { timeout: 10_000 });
+  await expect(page.locator('.dlg-text .thinking-dots')).toBeVisible();
+  await expect(page.locator('.nameplate')).toHaveText('하루');
+  await expect(text(page)).toHaveText('대답: 기다리는 중 확인?', { timeout: 10_000 });
+  await expect(page.locator('.dlg-text .thinking-dots')).toHaveCount(0);
+});
+
+test('채팅 설정: 글자 크기와 시간 표시가 적용되고 새로고침 후에도 유지된다', async ({ page }) => {
+  await start(page, fixture([{ cmd: 'say', who: 'host', text: '대기' }]));
+  await page.locator('#chat-input').fill('시간 표시 테스트');
+  await page.locator('#chat-input').press('Enter');
+  const mine = page.locator('.msg', { has: page.locator('.badge-me') }).last();
+  await expect(mine.locator('.msg-time')).toBeHidden();
+
+  await page.locator('#chat-settings-btn').click();
+  await page.locator('#chat-settings [data-font="lg"]').click();
+  await page.locator('#chat-time').check();
+  await expect(page.locator('#chat')).toHaveAttribute('data-font', 'lg');
+  await expect(mine.locator('.msg-time')).toBeVisible();
+  await expect(mine.locator('.msg-time')).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(page.locator('#chat-list')).toHaveCSS('font-size', '16.5px');
+
+  await page.reload();
+  await expect(page.locator('#chat')).toHaveAttribute('data-font', 'lg');
+  await page.locator('#chat-settings-btn').click();
+  await expect(page.locator('#chat-time')).toBeChecked();
+  await expect(page.locator('#chat-settings [data-font="lg"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('채팅 새 창: 지난 채팅과 새 채팅이 보이고, 새 창에서 보낸 채팅이 방송에 반영된다', async ({ page, context }) => {
+  await start(
+    page,
+    fixture(
+      [
+        { cmd: 'say', who: 'host', text: '본편' },
+        { cmd: 'end' },
+        { cmd: 'label', name: 'greet' },
+        { cmd: 'say', who: 'host', text: '새 창에서도 안녕!' },
+        { cmd: 'return' },
+      ],
+      { triggers: [{ keyword: '안녕', call: 'greet' }], meta: { title: 't', channel: 'c', notice: '공지 테스트' } },
+    ),
+  );
+  await page.locator('#chat-input').fill('새 창 열기 전 채팅');
+  await page.locator('#chat-input').press('Enter');
+
+  await page.locator('#chat-settings-btn').click();
+  const [popup] = await Promise.all([context.waitForEvent('page'), page.locator('#chat-popout').click()]);
+  await popup.waitForLoadState();
+  await expect(popup).toHaveTitle('채팅 | Live Talk');
+  await expect(popup.locator('.gnb')).toBeHidden();
+  // 지난 채팅과 공지
+  await expect(popup.locator('#chat-list')).toContainText('새 창 열기 전 채팅');
+  await expect(popup.locator('#chat-notice')).toContainText('공지 테스트');
+  // 방송 창의 채팅은 접힌다
+  await expect(page.locator('body')).toHaveClass(/chat-off/);
+
+  // 새 창에서 보낸 채팅 → 방송 창에서 처리(키워드 반응) → 새 창에도 표시
+  await popup.locator('#chat-input').fill('하루 안녕');
+  await popup.locator('#chat-input').press('Enter');
+  await expect(page.locator('#chat-list')).toContainText('하루 안녕');
+  await expect(popup.locator('.msg', { has: popup.locator('.badge-me') }).last()).toContainText('하루 안녕');
+  await typed(page);
+  await stage(page).click();
+  await expect(text(page)).toHaveText('새 창에서도 안녕!');
+
+  // 새 창을 닫으면 방송 창 채팅이 다시 펼쳐진다
+  await popup.close();
+  await expect(page.locator('body')).not.toHaveClass(/chat-off/);
+});
+
+test('채널 소개: 접힌 상태에서 더보기로 일정과 링크를 펼친다', async ({ page }) => {
+  await start(
+    page,
+    fixture([{ cmd: 'say', who: 'host', text: '대기' }], {
+      meta: {
+        title: 't',
+        channel: 'c',
+        about: {
+          intro: '채널 소개 문구입니다.',
+          schedule: ['월 9시'],
+          links: [
+            { label: '공식 링크', url: 'https://example.com/' },
+            { label: '위험 링크', url: 'javascript:alert(1)' },
+          ],
+        },
+      },
+    }),
+  );
+  const about = page.locator('#about');
+  await expect(about).toBeVisible();
+  await expect(about.locator('.about-intro')).toHaveText('채널 소개 문구입니다.');
+  await expect(about.locator('.about-schedule')).toBeHidden();
+  await about.locator('.about-toggle').click();
+  await expect(about.locator('.about-toggle')).toHaveAttribute('aria-expanded', 'true');
+  await expect(about.locator('.about-schedule')).toContainText('월 9시');
+  await expect(about.locator('a')).toHaveCount(1);
+  await expect(about.locator('a')).toHaveAttribute('href', 'https://example.com/');
+  await expect(about.locator('a')).toHaveAttribute('rel', 'noopener noreferrer');
+});
+
+test('채널 소개가 없으면 영역이 숨겨진다', async ({ page }) => {
+  await start(page, fixture([{ cmd: 'say', who: 'host', text: '대기' }]));
+  await expect(page.locator('#about')).toBeHidden();
+});
+
+test('운영 패널: 방송 정보를 바꾸면 제목·카테고리·태그·배너에 반영된다', async ({ page }) => {
+  await start(page, fixture([{ cmd: 'say', who: 'host', text: '대기' }]));
+  await page.locator('#admin-btn').click();
+  await expect(page.locator('#adm-meta-title')).toHaveValue('테스트 방송');
+  await page.locator('#adm-meta-title').fill('바뀐 제목');
+  await page.locator('#adm-meta-cat').fill('게임');
+  await page.locator('#adm-meta-tags').fill('하나, 둘, 하나');
+  await page.locator('#adm-meta button[type=submit]').click();
+
+  await expect(page.locator('#stream-title')).toHaveText('바뀐 제목');
+  await expect(page.locator('#ch-cat')).toHaveText('게임');
+  await expect(page.locator('#ch-tags .tag')).toHaveText(['하나', '둘']);
+  await expect(page).toHaveTitle('테스터 - 바뀐 제목 | Live Talk');
+  await expect(page.locator('#chat-list')).toContainText('방송 제목이 변경되었습니다: 바뀐 제목');
+  await page.locator('#adm-banner').click();
+  await expect(page.locator('#banner .banner-title')).toHaveText('바뀐 제목');
+});

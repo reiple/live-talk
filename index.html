@@ -157,13 +157,39 @@
               <button class="btn ghost hide-m" id="btn-sub">구독</button>
             </div>
           </div>
+          <section class="about" id="about" hidden>
+            <div class="about-head">
+              <b>채널 소개</b>
+              <button type="button" class="about-toggle" aria-expanded="false" aria-controls="about-body">더보기</button>
+            </div>
+            <div class="about-body" id="about-body">
+              <p class="about-intro"></p>
+              <div class="about-schedule"><b>방송 일정</b><ul></ul></div>
+              <div class="about-links"></div>
+            </div>
+          </section>
         </section>
       </main>
 
       <aside class="chat" id="chat" aria-label="채팅">
         <div class="chat-head">
           <b>채팅</b>
-          <button class="icon-btn" id="chat-close" aria-label="채팅 접기">→</button>
+          <div class="chat-head-actions">
+            <button class="icon-btn" id="chat-settings-btn" aria-label="채팅 설정" aria-expanded="false"><svg class="i"><use href="#i-gear" /></svg></button>
+            <button class="icon-btn" id="chat-close" aria-label="채팅 접기">→</button>
+          </div>
+        </div>
+        <div class="chat-pop" id="chat-settings" hidden>
+          <div class="cs-row">
+            <span>글자 크기</span>
+            <div class="seg" role="group" aria-label="채팅 글자 크기">
+              <button type="button" data-font="sm">작게</button>
+              <button type="button" data-font="md">보통</button>
+              <button type="button" data-font="lg">크게</button>
+            </div>
+          </div>
+          <label class="cs-row">채팅 시간 표시 <input type="checkbox" id="chat-time" /></label>
+          <button type="button" class="btn ghost" id="chat-popout">채팅창 새 창으로 열기</button>
         </div>
         <div class="chat-notice" id="chat-notice" hidden>
           <svg class="notice-pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3l6 6-3 1-4 4 1 5-2 2-4-4-5 5-1-1 5-5-4-4 2-2 5 1 4-4z" fill="currentColor" /></svg>
@@ -202,6 +228,15 @@
       <div class="admin-row wrap">
         <button class="btn ghost" id="adm-vote-close">투표 마감</button>
       </div>
+      <div class="admin-sec">방송 정보</div>
+      <form id="adm-meta" class="admin-say">
+        <input id="adm-meta-title" maxlength="80" placeholder="방송 제목" aria-label="방송 제목" required />
+        <div class="admin-row">
+          <input id="adm-meta-cat" maxlength="20" placeholder="카테고리" aria-label="카테고리" />
+          <input id="adm-meta-tags" placeholder="태그 (쉼표로 구분, 최대 5개)" aria-label="태그" />
+        </div>
+        <button class="btn" type="submit">방송 정보 적용</button>
+      </form>
       <div class="admin-sec">AI 자유 대화 <small id="adm-ai-status" class="ai-status">확인 전</small></div>
       <div class="admin-row wrap">
         <button class="btn ghost" id="adm-ai-start">자유 대화 시작 (60초)</button>
