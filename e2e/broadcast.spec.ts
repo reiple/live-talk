@@ -815,3 +815,45 @@ test('운영 패널: 방송 정보를 바꾸면 제목·카테고리·태그·�
   await page.locator('#adm-banner').click();
   await expect(page.locator('#banner .banner-title')).toHaveText('바뀐 제목');
 });
+
+/* ------------------------------------------------------------------ */
+/* 채팅 접기/펼치기 버튼 위치                                              */
+/* ------------------------------------------------------------------ */
+
+/** 버튼 한가운데를 실제로 누를 수 있는지 (다른 요소에 가려지지 않았는지) */
+const notCovered = (page: Page, selector: string) =>
+  page.evaluate((sel) => {
+    const el = document.querySelector(sel)!;
+    const r = el.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return !!hit && (hit === el || el.contains(hit));
+  }, selector);
+
+for (const vp of [
+  { name: '데스크톱', width: 1440, height: 860 },
+  { name: '좁은 데스크톱', width: 1000, height: 700 },
+]) {
+  test(`채팅을 접어도 방송 정보 버튼이 가려지지 않고, 플레이어 컨트롤에서 다시 펼칠 수 있다 (${vp.name})`, async ({ page }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await start(page, fixture([{ cmd: 'say', who: 'host', text: '대기' }]));
+    const openBtn = page.locator('#chat-open');
+    await expect(openBtn).toBeHidden();
+
+    await page.locator('#chat-close').click();
+    await expect(page.locator('#chat')).toBeHidden();
+    // 펼치기 버튼은 플레이어 컨트롤 바 안에 있다
+    await expect(page.locator('#controls #chat-open')).toHaveCount(1);
+    await stage(page).hover();
+    await expect(openBtn).toBeVisible();
+
+    for (const sel of ['#btn-follow', '#btn-sub']) {
+      await page.locator(sel).scrollIntoViewIfNeeded();
+      expect(await notCovered(page, sel), `${sel} 가 가려짐`).toBe(true);
+    }
+
+    await stage(page).hover();
+    await openBtn.click();
+    await expect(page.locator('#chat')).toBeVisible();
+    await expect(openBtn).toBeHidden();
+  });
+}

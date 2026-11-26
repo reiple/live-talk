@@ -138,25 +138,6 @@
   border-radius: 8px;
   padding: 9px 12px;
 }
-.chat-open {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: 0;
-  background: var(--accent);
-  color: var(--accent-ink);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 6px 20px #0008;
-  z-index: 30;
-}
-.chat-open svg {
-  width: 22px;
-  height: 22px;
-}
 
 /* ---------------- 고정 공지 ---------------- */
 .chat-notice {
@@ -335,7 +316,6 @@ body.popout #app {
 body.popout .gnb,
 body.popout .sidebar,
 body.popout .main,
-body.popout .chat-open,
 body.popout #chat-close,
 body.popout #chat-popout {
   display: none !important;
