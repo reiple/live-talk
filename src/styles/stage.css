@@ -274,7 +274,7 @@
     inset 0 6px 0 #2a3a78,
     inset 0 -6px 0 #2a3a78,
     0 0 0 3px #0b1230;
-  transition: opacity 0.3s ease, translate 0.3s ease;
+  transition: opacity 0.3s ease, translate 0.3s ease, transform 0.25s ease;
 }
 .dialogue.empty {
   opacity: 0;
@@ -384,4 +384,94 @@
   .dlg-text .ch.shk.on {
     animation: none;
   }
+}
+
+/* ---------------- 컨트롤 바 표시 중 대사창 올리기 ---------------- */
+.player:not(.idle) .dialogue,
+.player.paused .dialogue {
+  transform: translateY(calc(-1 * var(--ctl-lift, 0px)));
+}
+
+/* ---------------- 알림 종류별 색상 ---------------- */
+.alert-follow,
+.alert-subscribe {
+  min-width: 0;
+  padding: 16px 40px 18px;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 16px;
+}
+.alert-follow .alert-icon,
+.alert-subscribe .alert-icon {
+  font-size: 48px;
+}
+.alert-follow .alert-head,
+.alert-subscribe .alert-head {
+  font-size: 36px;
+}
+.alert-follow {
+  background: linear-gradient(135deg, #0d2b25f2, #0a1f1bf2);
+  border-color: #33e0a8;
+  box-shadow: 0 0 50px #33e0a855;
+}
+.alert-follow .alert-icon,
+.alert-follow b {
+  color: #33e0a8;
+}
+.alert-subscribe {
+  background: linear-gradient(135deg, #24163ff2, #170e2bf2);
+  border-color: #a98bff;
+  box-shadow: 0 0 50px #a98bff55;
+}
+.alert-subscribe .alert-icon,
+.alert-subscribe b,
+.alert-subscribe em {
+  color: #c4b1ff;
+}
+
+/* ---------------- 방송 제목 배너 ---------------- */
+.banner {
+  position: absolute;
+  top: 110px;
+  left: 0;
+  display: flex;
+  align-items: stretch;
+  max-width: 1300px;
+  translate: -105% 0;
+  transition: translate 0.6s cubic-bezier(0.2, 0.9, 0.3, 1);
+  filter: drop-shadow(0 10px 24px #0008);
+}
+.banner.on {
+  translate: 0 0;
+}
+.banner-live {
+  display: grid;
+  place-items: center;
+  padding: 0 28px 0 60px;
+  background: var(--live, #ff3b4a);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+.banner-body {
+  display: grid;
+  gap: 2px;
+  padding: 14px 64px 16px 28px;
+  background: #0e1330ee;
+  border-top: 3px solid #33e0a8;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 36px) 100%, 0 100%);
+  min-width: 0;
+}
+.banner-sub {
+  font-size: 26px;
+  color: #33e0a8;
+  font-weight: 700;
+}
+.banner-title {
+  font-size: 40px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

@@ -55,6 +55,10 @@
               <div class="fx-flash" id="fx-flash"></div>
               <div class="fx-cutin" id="fx-cutin"><span></span></div>
               <div class="alert-layer" id="alert-layer"></div>
+              <div class="banner" id="banner" aria-hidden="true">
+                <span class="banner-live">ON AIR</span>
+                <div class="banner-body"><span class="banner-sub"></span><b class="banner-title"></b></div>
+              </div>
               <div class="dialogue empty" id="dialogue">
                 <div class="nameplate" hidden><span></span></div>
                 <p class="dlg-text"></p>
@@ -148,10 +152,16 @@
           <b>채팅</b>
           <button class="icon-btn" id="chat-close" aria-label="채팅 접기">→</button>
         </div>
-        <div class="chat-notice">📌 채팅에 <b>안녕</b>, <b>노래</b>, <b>케이크</b>를 입력하면 하루가 반응해요.</div>
+        <div class="chat-notice" id="chat-notice" hidden>
+          <svg class="notice-pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3l6 6-3 1-4 4 1 5-2 2-4-4-5 5-1-1 5-5-4-4 2-2 5 1 4-4z" fill="currentColor" /></svg>
+          <p class="notice-text"></p>
+          <button class="icon-btn notice-close" aria-label="공지 닫기">✕</button>
+        </div>
         <div class="chat-list" id="chat-list" role="log"></div>
         <button class="chat-jump" id="chat-jump" hidden>최신 채팅 보기 ↓</button>
+        <div class="emote-picker" id="emote-picker" hidden aria-label="이모티콘"></div>
         <form class="chat-form" id="chat-form">
+          <button type="button" class="emote-btn" id="emote-btn" aria-label="이모티콘" aria-expanded="false"><img alt="" /></button>
           <input id="chat-input" autocomplete="off" placeholder="채팅을 입력해 주세요" aria-label="채팅 입력" />
           <button class="btn" type="submit">전송</button>
         </form>
@@ -173,8 +183,22 @@
         <button class="btn ghost" data-fx="shake">흔들림</button>
         <button class="btn ghost" data-fx="flash">플래시</button>
         <button class="btn ghost" data-fx="cutin">컷인</button>
-        <button class="btn ghost" id="adm-donate">후원 테스트</button>
+        <button class="btn ghost" id="adm-banner">제목 배너</button>
       </div>
+      <div class="admin-sec">알림 테스트</div>
+      <div class="admin-row wrap">
+        <button class="btn ghost" id="adm-donate">후원</button>
+        <button class="btn ghost" id="adm-follow">팔로우</button>
+        <button class="btn ghost" id="adm-sub">구독</button>
+      </div>
+      <div class="admin-sec">채팅 고정 공지</div>
+      <form id="adm-notice" class="admin-say">
+        <input id="adm-notice-text" placeholder="예) 채팅에 {green}안녕{/green}을 입력해 보세요" />
+        <div class="admin-row">
+          <button class="btn" type="submit">공지 고정</button>
+          <button class="btn ghost" type="button" id="adm-notice-clear">공지 내리기</button>
+        </div>
+      </form>
       <div class="admin-sec">즉석 대사 <small>(다음 대사 앞에 끼워넣기)</small></div>
       <form id="adm-say" class="admin-say">
         <textarea id="adm-text" rows="3" placeholder="예) {red}잠깐!{/red} 방금 채팅 봤어?"></textarea>

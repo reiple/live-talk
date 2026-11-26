@@ -15,6 +15,7 @@ export interface RunnerDeps {
   chat(user: string, text: string, donation?: number): void;
   /** say 의 reactions → 봇 채팅 반응 */
   react(lines: string[]): void;
+  notice(text?: string): void;
   onEnd(): void;
 }
 
@@ -87,6 +88,8 @@ export class ScriptRunner {
 
   callLabel(name: string, vars: Record<string, string> = {}) {
     if (!this.labels.has(name) || this.state !== 'running') return false;
+    // 반응 대사가 줄줄이 쌓이지 않도록, 대기 중인 호출이 있으면 무시
+    if (this.injected.some((c) => c.cmd === 'call')) return false;
     this.injected.push({ cmd: 'call', to: name });
     this.vars = vars;
     return true;
@@ -171,6 +174,12 @@ export class ScriptRunner {
         return;
       case 'chat':
         this.d.chat(c.user, this.sub(c.text), c.donation);
+        return;
+      case 'banner':
+        stage.banner(c.text ?? this.file.meta.title, c.sub ?? this.file.meta.channel, c.ms);
+        return;
+      case 'notice':
+        this.d.notice(c.text);
         return;
       case 'wait': {
         let left = c.ms;

@@ -5,6 +5,8 @@ export interface CharView {
   el: HTMLElement;
   setExpr(expr: string): void;
   setTalking(on: boolean): void;
+  /** 시선 방향. x, y 는 -1(왼쪽/위) ~ 1(오른쪽/아래) */
+  lookAt?(x: number, y: number): void;
   destroy(): void;
 }
 
@@ -139,6 +141,7 @@ class PlaceholderCharacter implements CharView {
   private svg: SVGSVGElement;
   private mouth: SVGPathElement;
   private expr: Expr = EXPRS.normal;
+  private gaze: [number, number] = [0, 0];
   private open = false;
   private talkTimer = 0;
   private blinkTimer = 0;
@@ -170,12 +173,26 @@ class PlaceholderCharacter implements CharView {
     this.q('.brow-l')[0].style.transform = `translateY(${dy}px) rotate(${l}deg)`;
     this.q('.brow-r')[0].style.transform = `translateY(${dy}px) rotate(${r}deg)`;
     this.q('.eye-shape').forEach((g) => (g.style.transform = `scaleY(${e.eyeY})`));
-    this.q('.iris').forEach((g) => (g.style.transform = `translate(${e.look[0]}px, ${e.look[1]}px)`));
-    this.q('.pc-head')[0].style.transform = `rotate(${e.tilt}deg)`;
+    this.applyPose();
     this.svg.classList.toggle('has-blush', !!e.blush);
     this.svg.classList.toggle('has-sweat', !!e.sweat);
     this.svg.classList.toggle('has-arm', !!e.arm);
     this.drawMouth();
+  }
+
+  lookAt(x: number, y: number) {
+    this.gaze = [Math.max(-1, Math.min(1, x)), Math.max(-1, Math.min(1, y))];
+    this.applyPose();
+  }
+
+  /** 표정의 기본 시선/기울기 + 마우스 시선을 합성 */
+  private applyPose() {
+    const e = this.expr;
+    const [gx, gy] = this.gaze;
+    const ix = e.look[0] + gx * 7;
+    const iy = e.look[1] + gy * 6;
+    this.q('.iris').forEach((g) => (g.style.transform = `translate(${ix}px, ${iy}px)`));
+    this.q('.pc-head')[0].style.transform = `translate(${gx * 8}px, ${gy * 5}px) rotate(${e.tilt + gx * 3}deg)`;
   }
 
   private drawMouth() {
@@ -318,6 +335,16 @@ export class CharacterLayer {
 
   setExpr(id: string, expr: string) {
     this.views.get(id)?.setExpr(expr);
+  }
+
+  /** 모든 캐릭터의 시선을 화면상의 한 점으로 (스테이지 기준 -1 ~ 1) */
+  lookAt(x: number, y: number) {
+    this.views.forEach((v) => {
+      if (!v.lookAt) return;
+      // 캐릭터 위치 기준으로 보정: 왼쪽 캐릭터는 같은 점을 더 오른쪽으로 본다
+      const cx = (parseFloat(v.el.style.left) || 50) / 50 - 1;
+      v.lookAt(x - cx, y);
+    });
   }
 
   talk(id: string | undefined, on: boolean) {
