@@ -3,6 +3,7 @@ import type { DialogueBox } from '../dialogue/DialogueBox';
 import type { CharacterLayer } from '../stage/characters';
 import type { Stage } from '../stage/Stage';
 import { Gate, sleep } from '../util';
+import { percent, type VotePanel } from '../vote/VotePanel';
 import type { Command, ScriptFile } from './types';
 
 export interface RunnerDeps {
@@ -11,6 +12,7 @@ export interface RunnerDeps {
   dialogue: DialogueBox;
   sound: SoundManager;
   gate: Gate;
+  vote: VotePanel;
   /** 스크립트의 chat 명령 */
   chat(user: string, text: string, donation?: number): void;
   /** say 의 reactions → 봇 채팅 반응 */
@@ -48,6 +50,7 @@ export class ScriptRunner {
     this.pc = 0;
     this.stack = [];
     this.injected = [];
+    this.d.vote.abort();
     this.d.dialogue.abort();
     this.d.dialogue.clear();
     this.d.chars.clear();
@@ -58,6 +61,7 @@ export class ScriptRunner {
 
   stop() {
     this.epoch++;
+    this.d.vote.abort();
     this.d.dialogue.abort();
     this.state = 'ended';
   }
@@ -181,6 +185,16 @@ export class ScriptRunner {
       case 'notice':
         this.d.notice(c.text);
         return;
+      case 'vote': {
+        if (!c.options || c.options.length < 2) return;
+        const r = await this.d.vote.run(c.question, c.options, c.seconds ?? 20);
+        if (!r || ep !== this.epoch) return;
+        const win = c.options[r.index];
+        this.vars = { ...this.vars, winner: win.text, winnerPct: String(percent(r.counts[r.index], r.total)) };
+        const i = win.jump ? this.labels.get(win.jump) : undefined;
+        if (i != null) this.pc = i + 1;
+        return;
+      }
       case 'wait': {
         let left = c.ms;
         while (left > 0 && ep === this.epoch) {

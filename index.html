@@ -55,6 +55,16 @@
               <div class="fx-flash" id="fx-flash"></div>
               <div class="fx-cutin" id="fx-cutin"><span></span></div>
               <div class="alert-layer" id="alert-layer"></div>
+              <div class="vote" id="vote" hidden>
+                <div class="vote-head">
+                  <span class="vote-tag">투표</span>
+                  <b class="vote-q"></b>
+                  <span class="vote-time"></span>
+                </div>
+                <ol class="vote-opts"></ol>
+                <div class="vote-timer"><i></i></div>
+                <p class="vote-hint">채팅에 번호를 입력하거나 클릭해서 투표하세요</p>
+              </div>
               <div class="banner" id="banner" aria-hidden="true">
                 <span class="banner-live">ON AIR</span>
                 <div class="banner-body"><span class="banner-sub"></span><b class="banner-title"></b></div>
@@ -184,6 +194,10 @@
         <button class="btn ghost" data-fx="flash">플래시</button>
         <button class="btn ghost" data-fx="cutin">컷인</button>
         <button class="btn ghost" id="adm-banner">제목 배너</button>
+      </div>
+      <div class="admin-sec">투표</div>
+      <div class="admin-row wrap">
+        <button class="btn ghost" id="adm-vote-close">투표 마감</button>
       </div>
       <div class="admin-sec">알림 테스트</div>
       <div class="admin-row wrap">

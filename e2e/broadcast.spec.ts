@@ -469,3 +469,108 @@ test('캐릭터 시선이 마우스를 따라간다', async ({ page }) => {
   await page.mouse.move(r.x + r.width - 5, r.y + r.height / 3);
   await expect.poll(() => iris.evaluate((e) => (e as SVGElement).style.transform)).toMatch(/translate\(\d/);
 });
+
+/* ------------------------------------------------------------------ */
+/* 시청자 투표 (DLG-14)                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * 봇은 weight 비율로 투표한다. 테스트에서는 weight 로 승자를 고정한다.
+ *  A(weight 0) / B(weight 1) → 봇은 전부 B 에 투표
+ */
+const voteScript = (seconds = 30, weights: [number, number] = [0, 1]) =>
+  fixture([
+    { cmd: 'say', who: 'host', text: '투표 시작!' },
+    {
+      cmd: 'vote',
+      question: '어느 쪽?',
+      seconds,
+      options: [
+        { text: 'A안', jump: 'a', weight: weights[0] },
+        { text: 'B안', jump: 'b', weight: weights[1] },
+      ],
+    },
+    { cmd: 'label', name: 'a' },
+    { cmd: 'say', who: 'host', text: 'A 승리 $winnerPct%' },
+    { cmd: 'end' },
+    { cmd: 'label', name: 'b' },
+    { cmd: 'say', who: 'host', text: '$winner 승리' },
+    { cmd: 'end' },
+  ]);
+
+async function openVote(page: Page, seconds?: number, weights?: [number, number]) {
+  await start(page, voteScript(seconds, weights));
+  await typed(page);
+  await stage(page).click();
+  await expect(page.locator('#vote')).toHaveClass(/\bon\b/);
+}
+
+const optRow = (page: Page, n: number) => page.locator(`#vote .vote-opt:nth-child(${n})`);
+
+test('투표: 선택지 클릭 → 내 선택 표시, 마감 → 승자 강조 후 해당 label 로 분기', async ({ page }) => {
+  await openVote(page);
+  await expect(page.locator('#vote .vote-q')).toHaveText('어느 쪽?');
+  await expect(page.locator('#chat-list')).toContainText('[투표] 어느 쪽?');
+
+  await optRow(page, 1).locator('.vote-btn').click();
+  await expect(optRow(page, 1)).toHaveClass(/\bmine\b/);
+  // 클릭이 대사 진행으로 새지 않는다
+  await expect(text(page)).toHaveText('투표 시작!');
+  // 봇은 B 에만 투표
+  await expect.poll(async () => Number((await optRow(page, 2).locator('.vote-cnt').textContent())!.replace('표', ''))).toBeGreaterThan(1);
+
+  await page.locator('#admin-btn').click();
+  await page.locator('#adm-vote-close').click();
+  await page.locator('#admin-close').click();
+  await expect(page.locator('#vote')).toHaveClass(/\bdone\b/);
+  await expect(optRow(page, 2)).toHaveClass(/\bwin\b/);
+  await expect(page.locator('#chat-list')).toContainText('[투표 결과] B안');
+
+  await expect(text(page)).toHaveText('B안 승리', { timeout: 6000 });
+  await expect(page.locator('#vote')).toBeHidden();
+});
+
+test('투표: 채팅 번호로 한 번만 투표되고, 번호 채팅은 키워드 트리거를 일으키지 않는다', async ({ page }) => {
+  await openVote(page, 30, [0, 0]); // 봇 투표 없음
+  await page.locator('#chat-input').fill('!1');
+  await page.locator('#chat-input').press('Enter');
+  await expect(optRow(page, 1).locator('.vote-cnt')).toHaveText('1표');
+  await expect(optRow(page, 1)).toHaveClass(/\bmine\b/);
+
+  await page.locator('#chat-input').fill('2');
+  await page.locator('#chat-input').press('Enter');
+  await expect(optRow(page, 2).locator('.vote-cnt')).toHaveText('0표');
+  await expect(optRow(page, 1).locator('.vote-pct')).toHaveText('100%');
+
+  // 범위를 벗어난 번호는 일반 채팅
+  await page.locator('#chat-input').fill('3');
+  await page.locator('#chat-input').press('Enter');
+  await expect(page.locator('.msg').last()).toContainText('3');
+  await expect(optRow(page, 1).locator('.vote-cnt')).toHaveText('1표');
+});
+
+test('투표: 숫자 키로 투표할 수 있다', async ({ page }) => {
+  await openVote(page, 30, [0, 0]);
+  await page.keyboard.press('2');
+  await expect(optRow(page, 2)).toHaveClass(/\bmine\b/);
+  await expect(optRow(page, 2).locator('.vote-cnt')).toHaveText('1표');
+});
+
+test('투표: 시간이 끝나면 자동 마감되고, 일시정지 중에는 타이머가 멈춘다', async ({ page }) => {
+  await openVote(page, 2, [1, 0]); // 봇은 A 에 투표
+  await page.keyboard.press('p');
+  await page.waitForTimeout(2600);
+  await expect(page.locator('#vote')).not.toHaveClass(/\bdone\b/);
+  await page.keyboard.press('p');
+  await expect(page.locator('#vote')).toHaveClass(/\bdone\b/, { timeout: 4000 });
+  await expect(text(page)).toHaveText(/^A 승리 \d+%$/, { timeout: 6000 });
+});
+
+test('투표 중 처음부터 다시 시작하면 투표가 취소된다', async ({ page }) => {
+  await openVote(page);
+  await page.locator('#admin-btn').click();
+  await page.locator('#adm-restart').click();
+  await expect(page.locator('#vote')).toBeHidden();
+  await expect(text(page)).toHaveText('투표 시작!');
+  await expect(page.locator('#chat-list')).not.toContainText('[투표 결과]');
+});

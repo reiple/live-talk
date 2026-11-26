@@ -11,6 +11,7 @@ import { ScriptRunner } from './script/ScriptRunner';
 import type { ScriptFile, Trigger } from './script/types';
 import { CharacterLayer, EXPRESSION_NAMES } from './stage/characters';
 import { Stage } from './stage/Stage';
+import { ME, parseVoteText, percent, VotePanel } from './vote/VotePanel';
 import { $, Gate, fmtNum, fmtTime, h, nameColor, rand, randInt, reducedMotion, store } from './util';
 
 const params = new URLSearchParams(location.search);
@@ -87,12 +88,32 @@ async function boot() {
   };
   const bots = new BotChat((m) => chat.add(m), donate, follow);
 
+  /* ---- 시청자 투표 (DLG-14) ---- */
+  const vote: VotePanel = new VotePanel($('#stage'), gate, {
+    onStart: (q, opts) => {
+      sound.sfx('pop');
+      chat.add({
+        user: '',
+        system: true,
+        text: `[투표] ${q} — 채팅에 번호를 입력하세요 (${opts.map((o, i) => `${i + 1}. ${o.text}`).join(' / ')})`,
+      });
+      bots.startVoting(vote.weights, (u, i) => vote.cast(u, i), () => vote.active);
+    },
+    onEnd: (_q, opts, r) => {
+      bots.stopVoting();
+      sound.sfx('chime');
+      const pct = percent(r.counts[r.index], r.total);
+      chat.add({ user: '', system: true, text: `[투표 결과] ${opts[r.index].text} (${r.counts[r.index]}표, ${pct}%)` });
+    },
+  });
+
   const runner = new ScriptRunner(file, {
     stage,
     chars,
     dialogue,
     sound,
     gate,
+    vote,
     chat: (user, text, donation) => (donation ? donate(user, donation, text, false) : chat.add({ user, text })),
     react: (lines) => bots.burst(lines),
     notice: (text) => chat.setNotice(text),
@@ -108,6 +129,12 @@ async function boot() {
   chat.setNotice(file.meta.notice);
   chat.onSend((text) => {
     chat.add({ user: '시청자(나)', text, badges: ['me'] });
+    // 투표 중 번호 채팅은 투표로 처리
+    const v = vote.active ? parseVoteText(text, vote.optionCount) : null;
+    if (v != null) {
+      vote.cast(ME, v);
+      return;
+    }
     fire((t) => !!t.keyword && text.includes(t.keyword), { user: '시청자(나)' });
   });
 
@@ -148,8 +175,8 @@ async function boot() {
     startBroadcast();
   });
 
-  setupPlayer({ gate, sound, dialogue, stage, chars, runner, startBroadcast });
-  setupAdmin({ runner, gate, dialogue, chars, stage, chat, hostId, file, donate, follow, startBroadcast });
+  setupPlayer({ gate, sound, dialogue, stage, chars, runner, vote, startBroadcast });
+  setupAdmin({ runner, gate, dialogue, chars, stage, chat, vote, hostId, file, donate, follow, startBroadcast });
 }
 
 /* ================================================================== */
@@ -162,6 +189,7 @@ function setupPlayer(x: {
   stage: Stage;
   chars: CharacterLayer;
   runner: ScriptRunner;
+  vote: VotePanel;
   startBroadcast: () => void;
 }) {
   const { gate, sound, dialogue, runner } = x;
@@ -367,6 +395,7 @@ function setupPlayer(x: {
     else if (k === 'p' || k === 'k') gate.toggle();
     else if (k === '`') toggleAdmin();
     else if (k === 'escape') closePops();
+    else if (/^[1-4]$/.test(k) && x.vote.active) x.vote.cast(ME, Number(k) - 1);
   });
 
   // 레이아웃 토글
@@ -391,6 +420,7 @@ function setupAdmin(x: {
   chars: CharacterLayer;
   stage: Stage;
   chat: ChatPanel;
+  vote: VotePanel;
   hostId: string;
   file: ScriptFile;
   donate: (u: string, a: number, t: string) => void;
@@ -435,6 +465,7 @@ function setupAdmin(x: {
   $('#adm-donate').addEventListener('click', () => x.donate('테스트후원자', 3000, '운영 패널 후원 테스트!'));
   $('#adm-follow').addEventListener('click', () => x.follow('테스트팔로워', 'follow'));
   $('#adm-sub').addEventListener('click', () => x.follow('테스트구독자', 'subscribe'));
+  $('#adm-vote-close').addEventListener('click', () => x.vote.close());
   $('#adm-banner').addEventListener('click', () => x.stage.banner(x.file.meta.title, x.file.meta.channel));
 
   // 채팅 고정 공지 (CHT-07)

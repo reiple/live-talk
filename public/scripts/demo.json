@@ -10,7 +10,7 @@
       "한국어"
     ],
     "loop": false,
-    "notice": "채팅에 {green}안녕{/green}, {green}노래{/green}, {green}케이크{/green}를 입력하면 하루가 반응해요. 팔로우하면 하루가 인사해 줘요!"
+    "notice": "채팅에 {green}안녕{/green}, {green}노래{/green}, {green}케이크{/green}를 입력하면 하루가 반응해요. 투표가 열리면 {green}번호{/green}로 참여!"
   },
   "characters": {
     "host": {
@@ -143,6 +143,96 @@
         "범인 누구야",
         ":하루눈물:"
       ]
+    },
+    {
+      "cmd": "say",
+      "who": "host",
+      "expr": "thinking",
+      "text": "범인이 누굴까? {wait:200}여러분이 추리해 줘! 채팅에 {green}번호{/green}로 투표!",
+      "reactions": [
+        "1",
+        "2",
+        "3",
+        "!1",
+        "투표 ㄱㄱ"
+      ]
+    },
+    {
+      "cmd": "vote",
+      "question": "케이크를 먹은 범인은?",
+      "seconds": 15,
+      "options": [
+        {
+          "text": "매니저",
+          "jump": "v_manager",
+          "weight": 3
+        },
+        {
+          "text": "고양이",
+          "jump": "v_cat",
+          "weight": 1.5
+        },
+        {
+          "text": "사실 하루 본인",
+          "jump": "v_self",
+          "weight": 2
+        }
+      ]
+    },
+    {
+      "cmd": "label",
+      "name": "v_cat"
+    },
+    {
+      "cmd": "say",
+      "who": "host",
+      "expr": "smile",
+      "text": "{yellow}$winner{/yellow}가 $winnerPct%로 1등? 우리 집엔 고양이 없다니까~",
+      "reactions": [
+        "ㅋㅋㅋㅋ",
+        "고양이 억울"
+      ]
+    },
+    {
+      "cmd": "jump",
+      "to": "reveal"
+    },
+    {
+      "cmd": "label",
+      "name": "v_self"
+    },
+    {
+      "cmd": "say",
+      "who": "host",
+      "expr": "angry",
+      "text": "{yellow}나{/yellow}라고?! $winnerPct%나?! {wait:300}자다가 먹었을 리가… {speed:0.6}없, 없겠지?",
+      "reactions": [
+        "몽유병 ㄷㄷ",
+        "하루 의심됨",
+        ":하루화남:"
+      ]
+    },
+    {
+      "cmd": "jump",
+      "to": "reveal"
+    },
+    {
+      "cmd": "label",
+      "name": "v_manager"
+    },
+    {
+      "cmd": "say",
+      "who": "host",
+      "expr": "surprised",
+      "text": "{yellow}매니저{/yellow}가 $winnerPct%! 다들 벌써 눈치챘구나?",
+      "reactions": [
+        "ㅋㅋㅋ 뻔하지",
+        "매니저 수상해"
+      ]
+    },
+    {
+      "cmd": "label",
+      "name": "reveal"
     },
     {
       "cmd": "say",
