@@ -20,6 +20,21 @@ npx playwright install chromium
 sudo npx playwright install-deps chromium   # Linux/WSL: libasound2 등 시스템 라이브러리
 ```
 
+## 웹 화면 Docker 이미지 (다른 서버에 배포)
+
+웹 화면만 nginx 이미지로 만들어 어느 서버에든 띄울 수 있습니다. `/api` 요청은 컨테이너가 `API_URL` 로 넘깁니다.
+api 서버에는 CORS 가 없으므로 브라우저는 항상 웹 컨테이너의 `/api` 를 거칩니다 (api 를 다른 도메인으로 직접 부르지 않음).
+
+```bash
+docker build -f web/Dockerfile -t live-talk-web .                     # 빌드 (리포지토리 루트에서)
+docker run -d -p 8080:80 -e API_URL=http://<api서버>:8787 live-talk-web # 배포 서버에서 실행
+docker compose up -d --build web                                      # 이 PC 에서 api 와 함께 (http://localhost:8080)
+```
+
+- `API_URL` 끝에 `/` 를 붙이지 않습니다. api 서버에 연결할 수 없으면 화면은 정상으로 뜨고 AI 자유 대화와 음성만 꺼집니다.
+- api 서버는 요청 제한(IP 당 분당 30회)에 쓸 접속자 IP 를 `TRUST_PROXY` 단수만큼 `X-Forwarded-For` 에서 읽습니다. docker compose 의 api 는 기본 `1` (웹 컨테이너 뒤). api 포트(8787)를 외부에 직접 열면 헤더 위조로 제한을 피할 수 있으므로 `TRUST_PROXY=0` 으로 두거나 포트를 닫습니다.
+- 캐릭터 설정은 api 서버가 자기 쪽 `SCRIPTS_DIR` 에서 읽으므로, 웹 이미지와 api 서버의 `public/scripts` 를 같은 버전으로 맞춥니다.
+
 ## AI 자유 대화 (로컬 LLM)
 
 스크립트의 `freetalk` 명령이나 운영 패널의 **자유 대화 시작** 버튼을 누르면, 정해진 시간 동안 캐릭터가 시청자 채팅에 AI로 대답합니다.
