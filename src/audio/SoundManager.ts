@@ -23,6 +23,20 @@ export class SoundManager {
   get volume() {
     return this._volume;
   }
+  /** 음성(TTS) 재생용: 오디오 컨텍스트와 볼륨/음소거가 적용되는 출력 노드 */
+  get context() {
+    return this.ctx;
+  }
+  get output() {
+    return this.master;
+  }
+
+  /** 일시정지: 재생 중인 음성과 효과음을 그 자리에서 멈췄다가 이어서 재생 */
+  setSuspended(on: boolean) {
+    if (!this.ctx) return;
+    if (on) void this.ctx.suspend();
+    else void this.ctx.resume();
+  }
   get muted() {
     return this._muted;
   }

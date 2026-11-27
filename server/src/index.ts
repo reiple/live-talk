@@ -13,8 +13,10 @@ import { loadConfig } from './config.ts';
 import { complete, health, LlmError, loadModel } from './llm.ts';
 import { buildMessages, parseRequest, sanitizeReply, type AiPersona } from './reply.ts';
 import { Warmer } from './warmup.ts';
+import { cleanTtsText, loadTtsConfig, synthesize, ttsHealth, voiceFor } from './tts.ts';
 
 const cfg = loadConfig();
+const ttsCfg = loadTtsConfig();
 const PORT = Number(process.env.PORT) || 8787;
 const SCRIPTS_DIR = resolve(process.env.SCRIPTS_DIR ?? join(import.meta.dirname, '../../public/scripts'));
 const MAX_BODY = 16 * 1024;
@@ -32,7 +34,7 @@ const warmer = new Warmer({
 /* ---------------- 캐릭터 설정 로드 (스크립트 파일의 ai 항목) ---------------- */
 interface ScriptAi {
   ai?: AiPersona & { who?: string };
-  characters?: Record<string, { name?: string }>;
+  characters?: Record<string, { name?: string; tts?: { voice?: string; speed?: number } }>;
 }
 const personaCache = new Map<string, { at: number; data: ScriptAi }>();
 
@@ -46,12 +48,56 @@ async function loadScript(name: string): Promise<ScriptAi> {
 
 /* ---------------- 간단한 요청 제한 (IP 당 분당 N회) ---------------- */
 const hits = new Map<string, number[]>();
-function rateLimited(ip: string) {
+function rateLimited(key: string, perMin = RATE_PER_MIN) {
   const now = Date.now();
-  const arr = (hits.get(ip) ?? []).filter((t) => now - t < 60_000);
+  const arr = (hits.get(key) ?? []).filter((t) => now - t < 60_000);
   arr.push(now);
-  hits.set(ip, arr);
-  return arr.length > RATE_PER_MIN;
+  hits.set(key, arr);
+  return arr.length > perMin;
+}
+
+/* ---------------- TTS (대사 → 음성) ---------------- */
+async function handleTts(req: IncomingMessage, res: ServerResponse) {
+  if (!ttsCfg.baseUrl) return send(res, 503, { error: 'TTS 꺼짐' });
+  const ip = req.socket.remoteAddress ?? 'unknown';
+  if (rateLimited(`tts:${ip}`, 120)) return send(res, 429, { error: '요청이 너무 많습니다.' });
+  let body: Record<string, unknown>;
+  try {
+    body = (await readJson(req)) as Record<string, unknown>;
+  } catch (e) {
+    return send(res, e instanceof LlmError ? e.status : 400, { error: (e as Error).message });
+  }
+  const text = cleanTtsText(body?.text);
+  if (!text) return void res.writeHead(204).end(); // 읽을 글자 없음
+  const script = String(body.script ?? 'demo');
+  if (!/^[\w-]{1,40}$/.test(script)) return send(res, 400, { error: 'script 이름이 올바르지 않습니다' });
+  let chars: ScriptAi['characters'];
+  try {
+    chars = (await loadScript(script)).characters;
+  } catch {
+    return send(res, 404, { error: `스크립트를 찾을 수 없습니다: ${script}` });
+  }
+  const { voice, speed } = voiceFor(chars, String(body.who ?? ''), ttsCfg);
+
+  const abort = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) abort.abort();
+  });
+  try {
+    const r = await synthesize(ttsCfg, text, voice, speed, abort.signal);
+    if (!r.ok) return send(res, 502, { error: `TTS 오류 ${r.status}` });
+    const audio = Buffer.from(await r.arrayBuffer());
+    res.writeHead(200, {
+      'content-type': 'audio/wav',
+      'content-length': audio.length,
+      'cache-control': 'no-store',
+      'x-tts-ms': r.headers.get('x-tts-ms') ?? '',
+      'x-tts-cache': r.headers.get('x-tts-cache') ?? '',
+    });
+    res.end(audio);
+  } catch (e) {
+    if (!abort.signal.aborted && !res.writableEnded) send(res, 503, { error: `TTS 서버에 연결할 수 없습니다: ${(e as Error).message}` });
+  }
 }
 
 /* ---------------- HTTP ---------------- */
@@ -134,6 +180,11 @@ const server = createServer(async (req, res) => {
       });
     }
     if (req.method === 'POST' && url.pathname === '/api/reply') return await handleReply(req, res);
+    if (req.method === 'POST' && url.pathname === '/api/tts') return await handleTts(req, res);
+    if (req.method === 'GET' && url.pathname === '/api/tts/health') {
+      const h = await ttsHealth(ttsCfg);
+      return send(res, h.ok ? 200 : 503, { ...h, model: ttsCfg.model });
+    }
     send(res, 404, { error: 'not found' });
   } catch (e) {
     console.error(e);
@@ -143,6 +194,7 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`[live-talk api] http://localhost:${PORT}  provider=${cfg.provider} model=${cfg.model} base=${cfg.baseUrl}`);
+  console.log(`[live-talk api] tts=${ttsCfg.baseUrl || '(꺼짐)'} model=${ttsCfg.model}`);
   void warmer.run();
 });
 

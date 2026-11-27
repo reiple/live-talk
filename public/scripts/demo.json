@@ -35,6 +35,10 @@
         "eyes": "#2e7fb8",
         "outfit": "#2c3566",
         "accent": "#ff7ab8"
+      },
+      "tts": {
+        "voice": "KR",
+        "speed": 1.1
       }
     }
   },

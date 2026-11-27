@@ -4,6 +4,8 @@ import type { CharacterLayer } from '../stage/characters';
 import type { Stage } from '../stage/Stage';
 import { Gate, sleep } from '../util';
 import type { FreeTalk } from '../ai/FreeTalk';
+import type { Speech, VoicePlayer } from '../audio/Voice';
+import { parseLine, plainText } from '../dialogue/parser';
 import { percent, type VotePanel } from '../vote/VotePanel';
 import type { Command, ScriptFile } from './types';
 
@@ -15,6 +17,8 @@ export interface RunnerDeps {
   gate: Gate;
   vote: VotePanel;
   freetalk: FreeTalk;
+  /** 캐릭터 음성 (없거나 꺼져 있으면 효과음으로 진행) */
+  voice?: VoicePlayer;
   /** 스크립트의 chat 명령 */
   chat(user: string, text: string, donation?: number): void;
   /** say 의 reactions → 봇 채팅 반응 */
@@ -126,6 +130,8 @@ export class ScriptRunner {
           break;
         }
         cmd = script[this.pc++];
+        // say 는 자기 음성을 먼저 요청한 뒤 다음 대사를 미리 받는다 (TTS 는 한 번에 하나씩 합성)
+        if (cmd.cmd !== 'say') this.prefetchVoice();
       }
       try {
         if ((await this.exec(cmd, ep)) === 'end') break;
@@ -136,6 +142,21 @@ export class ScriptRunner {
     if (ep === this.epoch) {
       this.state = 'ended';
       this.d.onEnd();
+    }
+  }
+
+  /** 다음 대사 음성을 미리 받아 둔다 (분기/투표/자유 대화 전까지만 앞을 본다) */
+  private prefetchVoice() {
+    const v = this.d.voice;
+    if (!v?.active) return;
+    const script = this.file.script;
+    for (let i = this.pc; i < Math.min(script.length, this.pc + 6); i++) {
+      const c = script[i];
+      if (c.cmd === 'say') {
+        if (c.who) void v.prepare(plainText(parseLine(this.sub(c.text))), c.who);
+        return;
+      }
+      if (['label', 'jump', 'call', 'return', 'end', 'vote', 'freetalk'].includes(c.cmd)) return;
     }
   }
 
@@ -152,15 +173,29 @@ export class ScriptRunner {
         if (c.who && c.expr) chars.setExpr(c.who, c.expr);
         chars.focus(c.who);
         if (c.reactions?.length) this.d.react(c.reactions);
+        const text = this.sub(c.text);
+        // 캐릭터 음성: 준비되면 재생하고 그 볼륨으로 입을 움직인다
+        let speech: Speech | null = null;
+        const who = c.who;
+        if (who && def && this.d.voice?.active) {
+          const pending = this.d.voice.speak(plainText(parseLine(text)), who, (lv) => chars.mouth(who, lv));
+          this.prefetchVoice();
+          speech = await pending;
+          if (ep !== this.epoch) {
+            speech?.stop();
+            return;
+          }
+        }
         await dialogue.say(
           {
             name: def?.name ?? (c.who && !def ? c.who : undefined),
             nameColor: def?.nameColor,
-            text: this.sub(c.text),
+            text,
             voice: def?.voice,
             speed: c.speed,
           },
-          (on) => chars.talk(c.who, on),
+          (on) => chars.talk(c.who, on, !!speech),
+          speech ?? undefined,
         );
         return;
       }

@@ -1,4 +1,5 @@
 import type { SoundManager } from '../audio/SoundManager';
+import type { Speech } from '../audio/Voice';
 import { Gate, h, reducedMotion, sleep } from '../util';
 import { pageIndexes } from './paginate';
 import { parseLine, plainText, type Token } from './parser';
@@ -37,7 +38,8 @@ export class DialogueBox {
   private next: HTMLElement;
   private live: HTMLElement;
 
-  private state: 'idle' | 'typing' | 'waiting' = 'idle';
+  private state: 'idle' | 'typing' | 'voicing' | 'waiting' = 'idle';
+  private speech?: Speech;
   private skip = false;
   private aborted = false;
   private resolveWait?: () => void;
@@ -64,6 +66,7 @@ export class DialogueBox {
   /** 클릭/Space: 출력 중이면 전체 표시, 대기 중이면 다음 대사 */
   advance() {
     if (this.state === 'typing') this.skip = true;
+    else if (this.state === 'voicing') this.speech?.stop();
     else if (this.state === 'waiting') this.finishWait();
   }
 
@@ -71,6 +74,7 @@ export class DialogueBox {
   abort() {
     this.aborted = true;
     this.skip = true;
+    this.speech?.stop();
     this.finishWait();
   }
 
@@ -102,9 +106,15 @@ export class DialogueBox {
     this.textEl.append(dots);
   }
 
-  async say(o: SayOptions, onTalk: (on: boolean) => void): Promise<void> {
+  /**
+   * speech 가 있으면 (캐릭터 음성 재생 중):
+   *  - 글자 출력 속도를 음성 길이에 맞춘다 (대사 태그의 속도/멈춤은 무시, 효과음 끔)
+   *  - 출력이 끝나도 음성이 끝날 때까지 기다린다 (클릭하면 음성을 멈추고 넘어감)
+   */
+  async say(o: SayOptions, onTalk: (on: boolean) => void, speech?: Speech): Promise<void> {
     this.aborted = false;
     this.skip = false;
+    this.speech = speech;
     this.root.classList.remove('empty');
 
     this.setName(o.name, o.nameColor);
@@ -122,7 +132,15 @@ export class DialogueBox {
 
     // 최대 줄 수를 넘으면 페이지로 나눠 출력 (DLG-03)
     const pages = this.paginate(steps);
-    const base = reducedMotion() ? 0 : this.settings().charMs;
+    const chars = steps.filter((s) => 'span' in s && s.span.textContent?.trim()).length;
+    const userMs = this.settings().charMs;
+    // '즉시' 설정과 움직임 줄이기는 음성이 있어도 글자를 바로 보여 준다
+    const base =
+      reducedMotion() || userMs === 0
+        ? 0
+        : speech
+          ? Math.min(400, Math.max(12, (speech.duration * 1000 * 0.92) / Math.max(1, chars)))
+          : userMs;
     let factor = o.speed ?? 1;
     let n = 0;
 
@@ -136,24 +154,31 @@ export class DialogueBox {
       for (const s of pages[p]) {
         if (this.aborted || this.skip || base === 0) break;
         if ('wait' in s) {
-          await this.delay(s.wait);
+          if (!speech) await this.delay(s.wait);
           continue;
         }
         if ('speed' in s) {
-          factor = s.speed;
+          if (!speech) factor = s.speed;
           continue;
         }
         s.span.classList.add('on');
         const ch = s.span.textContent ?? '';
-        if (ch.trim() && n++ % 2 === 0) this.sound.blip(o.voice);
+        if (!speech && ch.trim() && n++ % 2 === 0) this.sound.blip(o.voice);
         let d = base / factor;
-        if (/[,，、]/.test(ch)) d += base * 4;
-        else if (/[.!?。…~]/.test(ch)) d += base * 7;
-        await this.delay(d);
+        if (!speech && /[,，、]/.test(ch)) d += base * 4;
+        else if (!speech && /[.!?。…~]/.test(ch)) d += base * 7;
+        // 음성이 있으면 공백은 바로 넘긴다 (글자 수 기준으로 속도를 맞췄으므로)
+        await this.delay(speech && !ch.trim() ? 0 : d);
       }
       // 일시 속도 변경이 건너뛰어진 경우에도 다음 페이지에 반영
       for (const s of pages[p]) if ('speed' in s) factor = s.speed;
       for (const s of pages[p]) if ('span' in s) s.span.classList.add('on');
+      const last = p === pages.length - 1;
+      if (speech && last && !this.aborted) {
+        // 음성이 끝날 때까지 (클릭하면 음성을 멈추고 넘어감)
+        this.state = 'voicing';
+        await speech.done;
+      }
       onTalk(false);
       if (this.aborted) break;
 
@@ -161,9 +186,12 @@ export class DialogueBox {
       this.next.classList.add('on');
       this.root.dataset.page = `${p + 1}/${pages.length}`;
       const len = pages[p].filter((s) => 'span' in s).length;
-      await this.waitAdvance(len);
+      // 음성이 이어지는 중간 페이지는 짧게, 음성이 끝난 마지막 페이지는 기본 대기만
+      await this.waitAdvance(speech ? 0 : len, speech && !last ? 250 : undefined);
       this.next.classList.remove('on');
     }
+    speech?.stop();
+    this.speech = undefined;
     this.state = 'idle';
   }
 
@@ -227,7 +255,7 @@ export class DialogueBox {
     r?.();
   }
 
-  private waitAdvance(len: number) {
+  private waitAdvance(len: number, fixedMs?: number) {
     return new Promise<void>((resolve) => {
       this.resolveWait = resolve;
       let elapsed = 0;
@@ -236,7 +264,7 @@ export class DialogueBox {
         const st = this.settings();
         if (st.auto && !this.gate.isPaused) {
           elapsed += 100;
-          if (elapsed >= st.autoDelay + len * 45) {
+          if (elapsed >= (fixedMs ?? st.autoDelay + len * 45)) {
             this.finishWait();
             return;
           }

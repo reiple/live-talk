@@ -113,6 +113,7 @@
               </select>
             </label>
             <label class="row">자동 진행 <input type="checkbox" id="set-auto" /></label>
+            <label class="row">캐릭터 음성 <input type="checkbox" id="set-voice" /></label>
             <label>자동 진행 대기 <output id="set-delay-out"></output>
               <input type="range" id="set-delay" min="400" max="4000" step="100" />
             </label>
@@ -242,6 +243,7 @@
         <button class="btn ghost" id="adm-ai-start">자유 대화 시작 (60초)</button>
         <button class="btn ghost" id="adm-ai-stop">끝내기</button>
       </div>
+      <div class="admin-sec">캐릭터 음성 (TTS) <small id="adm-tts-status" class="ai-status">확인 전</small></div>
       <div class="admin-sec">알림 테스트</div>
       <div class="admin-row wrap">
         <button class="btn ghost" id="adm-donate">후원</button>

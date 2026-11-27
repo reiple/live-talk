@@ -48,6 +48,19 @@ services:
       --gpu-memory-utilization ${VLLM_GPU_MEM:-0.85}
     restart: unless-stopped
 
+  # 캐릭터 음성 (TTS): MeloTTS 한국어, CPU 사용. OpenAI 호환 /v1/audio/speech
+  # 끄고 싶으면 docker compose stop tts (브라우저는 자동으로 효과음으로 진행)
+  tts:
+    build: ./tts
+    image: live-talk-tts
+    ports: ["8880:8880"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8880/v1/models')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
   api:
     build: ./server
     ports: ["8787:8787"]
@@ -63,6 +76,10 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_EXTRA_BODY: ${LLM_EXTRA_BODY:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      # TTS (비우면 음성 끔)
+      TTS_BASE_URL: ${TTS_BASE_URL-http://tts:8880/v1}
+      TTS_MODEL: ${TTS_MODEL:-melotts-kr}
+      TTS_VOICE: ${TTS_VOICE:-KR}
       LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-20000}
       SCRIPTS_DIR: /app/scripts
     volumes:
