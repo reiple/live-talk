@@ -4,7 +4,10 @@ import { h, rand } from '../util';
 export interface CharView {
   el: HTMLElement;
   setExpr(expr: string): void;
-  setTalking(on: boolean): void;
+  /** driven: 음성 볼륨으로 입을 움직일 때 (자동 입 움직임 끔) */
+  setTalking(on: boolean, driven?: boolean): void;
+  /** 음성 볼륨(0~1)으로 입 열기 (CHR-05) */
+  setMouthLevel?(level: number): void;
   /** 시선 방향. x, y 는 -1(왼쪽/위) ~ 1(오른쪽/아래) */
   lookAt?(x: number, y: number): void;
   destroy(): void;
@@ -200,16 +203,25 @@ class PlaceholderCharacter implements CharView {
     this.mouth.classList.toggle('open', this.open);
   }
 
-  setTalking(on: boolean) {
+  setTalking(on: boolean, driven = false) {
     clearInterval(this.talkTimer);
     this.el.classList.toggle('talking', on);
-    if (on) {
+    if (on && !driven) {
       this.talkTimer = window.setInterval(() => {
         this.open = !this.open || Math.random() < 0.25;
         this.drawMouth();
       }, 95);
-    } else {
+    } else if (!on) {
       this.open = false;
+      this.drawMouth();
+    }
+  }
+
+  setMouthLevel(level: number) {
+    // 히스테리시스: 열 때와 닫을 때 기준을 달리해 입이 떨리지 않게
+    const open = this.open ? level > 0.015 : level > 0.03;
+    if (open !== this.open) {
+      this.open = open;
       this.drawMouth();
     }
   }
@@ -269,16 +281,24 @@ class SpriteCharacter implements CharView {
     this.expr = expr;
     this.render();
   }
-  setTalking(on: boolean) {
+  setTalking(on: boolean, driven = false) {
     clearInterval(this.talkTimer);
     this.el.classList.toggle('talking', on);
-    if (on) {
+    if (on && !driven) {
       this.talkTimer = window.setInterval(() => {
         this.open = !this.open;
         this.render();
       }, 100);
-    } else {
+    } else if (!on) {
       this.open = false;
+      this.render();
+    }
+  }
+
+  setMouthLevel(level: number) {
+    const open = this.open ? level > 0.015 : level > 0.03;
+    if (open !== this.open) {
+      this.open = open;
       this.render();
     }
   }
@@ -347,8 +367,13 @@ export class CharacterLayer {
     });
   }
 
-  talk(id: string | undefined, on: boolean) {
-    if (id) this.views.get(id)?.setTalking(on);
+  talk(id: string | undefined, on: boolean, driven = false) {
+    if (id) this.views.get(id)?.setTalking(on, driven);
+  }
+
+  /** 음성 볼륨으로 입 움직이기 */
+  mouth(id: string | undefined, level: number) {
+    if (id) this.views.get(id)?.setMouthLevel?.(level);
   }
 
   /** 말하는 캐릭터 외에는 살짝 어둡게 */

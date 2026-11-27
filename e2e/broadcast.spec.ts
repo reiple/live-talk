@@ -857,3 +857,124 @@ for (const vp of [
     await expect(openBtn).toBeHidden();
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* 캐릭터 음성 (SCR-07) + 음성 립싱크 (CHR-05) — /api/tts 는 생성한 wav 로 대체 */
+/* ------------------------------------------------------------------ */
+
+/** 테스트용 wav: 소리(사인파)와 무음이 번갈아 나오는 seconds 초짜리 16bit 모노 */
+function makeWav(seconds: number, rate = 16000) {
+  const n = Math.floor(seconds * rate);
+  const buf = Buffer.alloc(44 + n * 2);
+  buf.write('RIFF', 0);
+  buf.writeUInt32LE(36 + n * 2, 4);
+  buf.write('WAVEfmt ', 8);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(rate, 24);
+  buf.writeUInt32LE(rate * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write('data', 36);
+  buf.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) {
+    const t = i / rate;
+    const on = Math.floor(t * 5) % 2 === 0; // 0.2초마다 소리/무음
+    buf.writeInt16LE(on ? Math.round(Math.sin(2 * Math.PI * 220 * t) * 16000) : 0, 44 + i * 2);
+  }
+  return buf;
+}
+
+async function mockTts(page: Page, opts: { healthy?: boolean; seconds?: number } = {}) {
+  const bodies: { script: string; who: string; text: string }[] = [];
+  await page.route('**/api/tts/health', (r) =>
+    r.fulfill({ status: opts.healthy === false ? 503 : 200, json: { ok: opts.healthy !== false, model: 'mock-tts' } }),
+  );
+  await page.route('**/api/tts', (r) => {
+    bodies.push(r.request().postDataJSON());
+    return r.fulfill({ status: 200, contentType: 'audio/wav', body: makeWav(opts.seconds ?? 1.6) });
+  });
+  return bodies;
+}
+
+const voiceScript = () =>
+  fixture([
+    { cmd: 'say', who: 'host', text: '어째서 {red}그걸{/red} {wait:500}알고 있는 거죠? 이 문장은 음성에 맞춰 출력됩니다' },
+    { cmd: 'say', who: 'host', text: '두 번째 대사' },
+    { cmd: 'say', text: '나레이션은 음성 없음' },
+  ]);
+
+test('캐릭터 음성: 대사를 읽고, 글자 출력이 음성 길이에 맞춰지며, 다음 대사는 미리 받아 둔다', async ({ page }) => {
+  const bodies = await mockTts(page, { seconds: 1.6 });
+  // 글자당 500ms 설정이면 음성 없이 약 20초 → 음성(1.6초)에 맞춰지면 2초 안팎
+  await start(page, voiceScript(), { charMs: 500, auto: false });
+  const t0 = Date.now();
+  await typed(page);
+  const elapsed = Date.now() - t0;
+  expect(elapsed).toBeLessThan(5000);
+  expect(elapsed).toBeGreaterThan(1200); // 음성이 끝날 때까지 기다린다
+
+  // 서버로 보내는 문장: 대사 태그 제거, 화자 포함
+  expect(bodies[0]).toEqual({ script: 'demo', who: 'host', text: '어째서 그걸 알고 있는 거죠? 이 문장은 음성에 맞춰 출력됩니다' });
+  // 다음 대사를 미리 요청
+  await expect.poll(() => bodies.map((b) => b.text)).toContain('두 번째 대사');
+
+  await stage(page).click();
+  await expect(text(page)).toHaveText('두 번째 대사');
+  await typed(page);
+  await stage(page).click();
+  await expect(text(page)).toHaveText('나레이션은 음성 없음');
+  // 음성이 없는 나레이션은 사용자 설정 속도(글자당 500ms)로 출력되므로 오래 걸린다
+  await expect(nextMark(page)).toHaveClass(/\bon\b/, { timeout: 15_000 });
+  // 화자가 없는 나레이션은 읽지 않는다
+  expect(bodies.some((b) => b.text.includes('나레이션'))).toBe(false);
+});
+
+test('음성 립싱크: 소리가 나는 동안 입이 열렸다 닫힌다', async ({ page }) => {
+  await mockTts(page, { seconds: 2.4 });
+  await start(page, voiceScript(), { charMs: 500, auto: false });
+  const mouth = page.locator('.char .mouth');
+  // 소리 구간(0.2초)에는 열리고, 무음 구간에는 닫힌다
+  await expect(mouth).toHaveClass(/\bopen\b/, { timeout: 5000 });
+  await expect(mouth).not.toHaveClass(/\bopen\b/, { timeout: 2000 });
+  await expect(mouth).toHaveClass(/\bopen\b/, { timeout: 2000 });
+  await typed(page);
+  await expect(mouth).not.toHaveClass(/\bopen\b/);
+});
+
+test('음성 재생 중 클릭하면 음성을 멈추고 다음으로 넘어갈 수 있다', async ({ page }) => {
+  await mockTts(page, { seconds: 8 });
+  await start(page, voiceScript(), { charMs: 0, auto: false });
+  // 글자는 바로 다 나오지만 음성(8초)이 끝날 때까지 다음 표시가 없다
+  await expect(page.locator('.dlg-text .ch:not(.on)')).toHaveCount(0);
+  await expect(nextMark(page)).not.toHaveClass(/\bon\b/);
+  await stage(page).click(); // 음성 멈춤
+  await typed(page);
+  await stage(page).click();
+  await expect(text(page)).toHaveText('두 번째 대사');
+});
+
+test('캐릭터 음성을 끄거나 TTS 서버가 없으면 효과음 방식으로 진행한다', async ({ page }) => {
+  const bodies = await mockTts(page);
+  await start(page, voiceScript(), { charMs: 15, auto: false, voice: false });
+  await typed(page);
+  await expect(text(page)).toHaveText('어째서 그걸 알고 있는 거죠? 이 문장은 음성에 맞춰 출력됩니다');
+  expect(bodies).toHaveLength(0);
+
+  // 설정에서 다시 켜면 다음 대사부터 읽는다
+  await page.locator('#btn-settings').click();
+  await page.locator('#set-voice').check();
+  await page.keyboard.press('Escape');
+  await stage(page).click();
+  await expect.poll(() => bodies.length).toBeGreaterThan(0);
+});
+
+test('TTS 서버가 없으면 요청하지 않고 효과음으로 진행한다', async ({ page }) => {
+  const bodies = await mockTts(page, { healthy: false });
+  await start(page, voiceScript(), { charMs: 15, auto: false });
+  await typed(page);
+  await stage(page).click();
+  await expect(text(page)).toHaveText('두 번째 대사');
+  expect(bodies).toHaveLength(0);
+});

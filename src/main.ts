@@ -13,6 +13,7 @@ import type { ScriptFile, Trigger } from './script/types';
 import { CharacterLayer, EXPRESSION_NAMES } from './stage/characters';
 import { Stage } from './stage/Stage';
 import { AiClient } from './ai/AiClient';
+import { VoicePlayer } from './audio/Voice';
 import { parseMetaInput } from './meta';
 import { FreeTalk } from './ai/FreeTalk';
 import { ME, parseVoteText, percent, VotePanel } from './vote/VotePanel';
@@ -29,6 +30,8 @@ interface Settings extends DialogueSettings {
   subtitles: boolean;
   subSize: number;
   subAlpha: number;
+  /** 캐릭터 음성 (TTS) */
+  voice: boolean;
 }
 const DEFAULTS: Settings = {
   charMs: 40,
@@ -39,6 +42,7 @@ const DEFAULTS: Settings = {
   subtitles: true,
   subSize: 1,
   subAlpha: 0.92,
+  voice: true,
 };
 const settings: Settings = store.get('lt.settings', DEFAULTS);
 const saveSettings = () => store.set('lt.settings', settings);
@@ -154,6 +158,18 @@ async function boot() {
     },
   });
 
+  /* ---- 캐릭터 음성 (SCR-07) ---- */
+  const voice = new VoicePlayer(sound, SCRIPT_NAME);
+  voice.enabled = settings.voice;
+  // TTS 서버가 늦게 뜨거나 재시작해도 이어서 쓰도록 주기적으로 확인
+  const checkVoice = () => void voice.check();
+  checkVoice();
+  setInterval(() => {
+    if (!voice.available) checkVoice();
+  }, 15000);
+  // 일시정지하면 음성도 그 자리에서 멈춘다
+  gate.onChange((paused) => sound.setSuspended(paused));
+
   const runner = new ScriptRunner(file, {
     stage,
     chars,
@@ -162,6 +178,7 @@ async function boot() {
     gate,
     vote,
     freetalk,
+    voice,
     chat: (user, text, donation) => (donation ? donate(user, donation, text, false) : chat.add({ user, text })),
     react: (lines) => bots.burst(lines),
     notice: (text) => chat.setNotice(text),
@@ -225,8 +242,8 @@ async function boot() {
     startBroadcast();
   });
 
-  setupPlayer({ gate, sound, dialogue, stage, chars, runner, vote, startBroadcast });
-  setupAdmin({ runner, gate, dialogue, chars, stage, chat, vote, ai, freetalk, hostId, file, donate, follow, startBroadcast });
+  setupPlayer({ gate, sound, dialogue, stage, chars, runner, vote, voice, startBroadcast });
+  setupAdmin({ runner, gate, dialogue, chars, stage, chat, vote, ai, voice, freetalk, hostId, file, donate, follow, startBroadcast });
 }
 
 /* ================================================================== */
@@ -240,6 +257,7 @@ function setupPlayer(x: {
   chars: CharacterLayer;
   runner: ScriptRunner;
   vote: VotePanel;
+  voice: VoicePlayer;
   startBroadcast: () => void;
 }) {
   const { gate, sound, dialogue, runner } = x;
@@ -304,6 +322,13 @@ function setupPlayer(x: {
   const setBtn = $('#btn-settings');
   const speed = $<HTMLSelectElement>('#set-speed');
   const auto = $<HTMLInputElement>('#set-auto');
+  const voiceIn = $<HTMLInputElement>('#set-voice');
+  voiceIn.checked = settings.voice;
+  voiceIn.addEventListener('change', () => {
+    settings.voice = voiceIn.checked;
+    x.voice.enabled = settings.voice;
+    saveSettings();
+  });
   const delay = $<HTMLInputElement>('#set-delay');
   const delayOut = $('#set-delay-out');
   const size = $<HTMLSelectElement>('#set-size');
@@ -583,6 +608,7 @@ function setupAdmin(x: {
   chat: ChatPanel;
   vote: VotePanel;
   ai: AiClient;
+  voice: VoicePlayer;
   freetalk: FreeTalk;
   hostId: string;
   file: ScriptFile;
@@ -657,11 +683,15 @@ function setupAdmin(x: {
 
   // AI 자유 대화
   const aiStatus = $('#adm-ai-status');
+  const ttsStatus = $('#adm-tts-status');
   const refreshAi = async () => {
     aiStatus.textContent = '확인 중…';
     const h = await x.ai.health();
     aiStatus.textContent = h.ok ? `연결됨 · ${h.provider} · ${h.model}` : `연결 안 됨${h.error ? ` (${h.error})` : ''}`;
     aiStatus.classList.toggle('ok', h.ok);
+    const t = await x.voice.check();
+    ttsStatus.textContent = t.ok ? `연결됨 · ${x.voice.model}` : `연결 안 됨${t.error ? ` (${t.error})` : ''}`;
+    ttsStatus.classList.toggle('ok', t.ok);
   };
   $('#admin-btn').addEventListener('click', () => {
     if (!panel.hidden) void refreshAi();

@@ -9,6 +9,8 @@ export interface CharacterDef {
   voice?: string;
   /** 표정 → [입 닫힘, 입 열림] 이미지 경로. 없으면 내장 플레이스홀더 캐릭터 사용 */
   sprites?: Record<string, [string, string]>;
+  /** 캐릭터 음성 (TTS). voice: TTS 엔진의 목소리 이름, speed: 0.5~2 */
+  tts?: { voice?: string; speed?: number };
   /** 플레이스홀더 캐릭터 색상 */
   palette?: { hair?: string; eyes?: string; outfit?: string; accent?: string };
 }
