@@ -1,0 +1,10 @@
+# 리포지토리 루트를 컨텍스트로 쓰는 web/Dockerfile 용 (server/, tts/ 는 각자 컨텍스트를 씀)
+.git
+.env
+node_modules
+dist
+test-results
+playwright-report
+tts
+docs
+web/Dockerfile

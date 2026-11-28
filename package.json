@@ -11,7 +11,7 @@
     "test:e2e": "playwright test",
     "server": "node server/src/index.ts",
     "ai:up": "docker compose --profile ${LLM_PROVIDER:-ollama} up -d --build",
-    "ai:down": "docker compose --profile ollama --profile vllm down",
+    "ai:down": "docker compose --profile ollama --profile vllm --profile web down",
     "ai:logs": "docker compose logs -f api"
   },
   "devDependencies": {

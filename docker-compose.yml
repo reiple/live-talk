@@ -81,9 +81,23 @@ services:
       TTS_MODEL: ${TTS_MODEL:-melotts-kr}
       TTS_VOICE: ${TTS_VOICE:-KR}
       LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-20000}
+      # 요청 제한용 IP 를 X-Forwarded-For 에서 읽을 프록시 단수 (web 컨테이너 1단).
+      # api 의 8787 포트를 외부에 직접 열 때는 0 으로 (헤더 위조로 제한을 피할 수 있음)
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       SCRIPTS_DIR: /app/scripts
     volumes:
       - ./public/scripts:/app/scripts:ro
+    restart: unless-stopped
+
+  # 웹 화면 (nginx 정적 서빙 + /api 프록시). 다른 서버에 웹만 배포할 때는 이 이미지만 쓴다
+  #   docker compose up -d --build web    → http://localhost:8080
+  web:
+    build: { context: ., dockerfile: web/Dockerfile }
+    image: live-talk-web
+    profiles: ["web"]
+    ports: ["${WEB_PORT:-8080}:80"]
+    environment:
+      API_URL: ${WEB_API_URL:-http://api:8787}
     restart: unless-stopped
 
 volumes:

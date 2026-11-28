@@ -13,6 +13,7 @@ import { loadConfig } from './config.ts';
 import { complete, health, LlmError, loadModel } from './llm.ts';
 import { buildMessages, parseRequest, sanitizeReply, type AiPersona } from './reply.ts';
 import { Warmer } from './warmup.ts';
+import { clientIp, trustedHops } from './clientIp.ts';
 import { cleanTtsText, loadTtsConfig, synthesize, ttsHealth, voiceFor } from './tts.ts';
 
 const cfg = loadConfig();
@@ -21,6 +22,7 @@ const PORT = Number(process.env.PORT) || 8787;
 const SCRIPTS_DIR = resolve(process.env.SCRIPTS_DIR ?? join(import.meta.dirname, '../../public/scripts'));
 const MAX_BODY = 16 * 1024;
 const RATE_PER_MIN = Number(process.env.RATE_PER_MIN) || 30;
+const TRUST_PROXY = trustedHops();
 
 /* ---------------- 모델 미리 올리기 ---------------- */
 const warmer = new Warmer({
@@ -48,6 +50,7 @@ async function loadScript(name: string): Promise<ScriptAi> {
 
 /* ---------------- 간단한 요청 제한 (IP 당 분당 N회) ---------------- */
 const hits = new Map<string, number[]>();
+const ipOf = (req: IncomingMessage) => clientIp(req.socket.remoteAddress, req.headers['x-forwarded-for'], TRUST_PROXY);
 function rateLimited(key: string, perMin = RATE_PER_MIN) {
   const now = Date.now();
   const arr = (hits.get(key) ?? []).filter((t) => now - t < 60_000);
@@ -59,7 +62,7 @@ function rateLimited(key: string, perMin = RATE_PER_MIN) {
 /* ---------------- TTS (대사 → 음성) ---------------- */
 async function handleTts(req: IncomingMessage, res: ServerResponse) {
   if (!ttsCfg.baseUrl) return send(res, 503, { error: 'TTS 꺼짐' });
-  const ip = req.socket.remoteAddress ?? 'unknown';
+  const ip = ipOf(req);
   if (rateLimited(`tts:${ip}`, 120)) return send(res, 429, { error: '요청이 너무 많습니다.' });
   let body: Record<string, unknown>;
   try {
@@ -125,7 +128,7 @@ async function handleReply(req: IncomingMessage, res: ServerResponse) {
   // 모델을 올리는 중에는 오래 기다리게 하지 않고 바로 알린다 (브라우저는 준비된 대사로 대신함)
   if (!warmer.ready) return send(res, 503, { error: warmer.message, warming: true });
 
-  const ip = req.socket.remoteAddress ?? 'unknown';
+  const ip = ipOf(req);
   if (rateLimited(ip)) return send(res, 429, { error: '요청이 너무 많습니다. 잠시 후 다시 시도하세요.' });
 
   let parsed;
